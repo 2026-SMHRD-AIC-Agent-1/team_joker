@@ -1,4 +1,4 @@
-"""「뚫어보기」 화면 — Streamlit. 엔진(joker)을 import 하지 않고 HTTP 로만 API 를 부른다.
+"""Chat Shield 화면 — Streamlit. 엔진(joker)을 import 하지 않고 HTTP 로만 API 를 부른다.
 
 경계 규칙: 이 파일은 joker 를 import 하지 않는다(test_import_boundaries 강제).
 구동: 프로젝트 루트(model/)에서  streamlit run ui/streamlit_app.py
@@ -18,7 +18,7 @@ TIMEOUT = 30.0
 # 화면에 띄우는 실측 수치의 단일 출처. 여기 없는 숫자는 화면에 만들지 않는다.
 METRICS_PATH = Path(__file__).resolve().parents[1] / "data" / "evidence" / "headline_metrics.json"
 
-st.set_page_config(page_title="뚫어보기 — 챗봇 보안 진단", page_icon="🛡️", layout="wide")
+st.set_page_config(page_title="Chat Shield — 챗봇 보안 진단", page_icon="🛡️", layout="wide")
 
 
 # ── API 호출 (엔진 직접 import 아님) ─────────────────────────
@@ -430,7 +430,7 @@ def render_diagnose(base, target, mode):
 
 # ── 메인 (탭: 탐지 / 정밀 진단) ──────────────────────────────
 def main():
-    st.title("🛡️ 뚫어보기 — 한국어 챗봇 보안 자동 진단")
+    st.title("🛡️ Chat Shield — 한국어 챗봇 보안 자동 진단")
     st.caption("**JOKER-KO 탐지기**가 입력을 실시간으로 걸러내고, **진단 엔진**이 시스템 지시문을 "
                "진단→처방→재진단합니다. 두 층은 따로 돌고, 진단 결과가 탐지기 배치를 처방합니다.")
     base, target, mode = sidebar()

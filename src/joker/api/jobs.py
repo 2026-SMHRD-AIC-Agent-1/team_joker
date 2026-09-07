@@ -20,8 +20,13 @@ _log = get_logger("joker.api")
 
 
 class Job:
-    def __init__(self, run_id: str, target: dict, estimated: dict) -> None:
+    def __init__(self, run_id: str, target: dict, estimated: dict,
+                 user_id: str | None = None) -> None:
         self.run_id = run_id
+        # 진행 중(아직 DB 에 없는) 진단의 소유자. 완료본은 tb_diagnosis.user_id 가 진실이지만,
+        # 폴링 구간에서는 DB 에 행이 없어 여기서만 소유자를 알 수 있다 → 이 값이 없으면
+        # '진행 중인 남의 진단'은 run_id 만 알면 그대로 보인다.
+        self.user_id = user_id
         self.target = target          # target 블록 dict
         self.estimated = estimated    # estimate_calls() 결과
         self.status = "running"       # running | done | error
@@ -35,8 +40,9 @@ class JobRegistry:
         self._lock = threading.Lock()
         self._pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="joker-diag")
 
-    def register(self, run_id: str, target: dict, estimated: dict) -> Job:
-        job = Job(run_id, target, estimated)
+    def register(self, run_id: str, target: dict, estimated: dict,
+                 user_id: str | None = None) -> Job:
+        job = Job(run_id, target, estimated, user_id)
         with self._lock:
             self._jobs[run_id] = job
         return job

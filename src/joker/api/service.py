@@ -29,7 +29,9 @@ def _err(status: int, code: str, message: str) -> dict:
     return {"ok": False, "status": status, "code": code, "message": message}
 
 
-def prepare(body: dict, base_settings, data_dir: str) -> dict:
+def prepare(body: dict, base_settings, data_dir: str, user_id: str | None = None) -> dict:
+    """user_id 는 로그인 회원의 소유자 키. None 이면 비회원 진단(주인 없음).
+    ★ 키워드 인자라 기존 호출부(테스트·스크립트)는 그대로 동작한다 — 계약 v0.3 이 안 깨진다."""
     prompt = (body.get("target_prompt") or "").strip()
     if not prompt:
         return _err(400, "target_prompt_required", "진단할 시스템 프롬프트(target_prompt)가 필요합니다.")
@@ -68,6 +70,7 @@ def prepare(body: dict, base_settings, data_dir: str) -> dict:
         "ok": True, "run_id": run_id, "settings": settings, "providers": providers,
         "attacks": attacks, "patterns": patterns, "estimated": est,
         "target": target_block(settings.target_info()), "prompt": prompt,
+        "user_id": user_id,
     }
 
 
@@ -104,6 +107,8 @@ def make_worker(prep: dict, repo):
         state["env_profile"] = settings.env_profile
         state["backend"] = settings.backend_for("victim")
         state["victim_model"] = settings.victim_model
+        # ★ 소유자. 이 값이 있어야 GET/DELETE 가 남의 진단을 걸러낼 수 있다(IDOR 차단의 근거).
+        state["user_id"] = prep.get("user_id")
         repo.init_schema()
         repo.save_run(state)
 

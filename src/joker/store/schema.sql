@@ -133,3 +133,46 @@ CREATE TABLE IF NOT EXISTS tb_gold (
     verdict_final   TEXT NOT NULL,
     PRIMARY KEY (attack_id, defense_level)
 );
+
+-- ────────────────────────────────────────────────────────────
+-- 회원 (계약 v0.4 · 2026-09-08)
+-- ────────────────────────────────────────────────────────────
+-- ★ 이름·휴대폰번호·생년월일 열을 '만들지 않는다'.
+--   화면설계서 초안(0831)은 이 셋을 받았는데, 보안 진단 서비스가 그 정보를 왜 받는지
+--   설명할 수 없다(개인정보보호법 §16 최소수집). 열이 없어야 나중에 "일단 받아두자"가
+--   물리적으로 불가능해진다 — 정책을 문서가 아니라 스키마로 강제한다.
+CREATE TABLE IF NOT EXISTS tb_user (
+    user_id             TEXT PRIMARY KEY,            -- uuid4 hex
+    email               TEXT NOT NULL UNIQUE,        -- 소문자 정규화해서 저장
+    password_hash       TEXT NOT NULL,               -- scrypt$N$r$p$salt_b64$dk_b64
+    created_at          TEXT NOT NULL,               -- ISO8601
+    status              TEXT NOT NULL DEFAULT 'active'  -- active | disabled
+);
+
+-- ────────────────────────────────────────────────────────────
+-- 세션 (로그인 토큰)
+-- ────────────────────────────────────────────────────────────
+-- ★ 토큰 '원문'은 저장하지 않는다. sha256 해시만 넣는다.
+--   joker.db 는 파일 하나라 실수로 커밋·유출될 수 있는데, 원문을 넣어두면 그 파일 하나로
+--   모든 회원 계정에 로그인할 수 있게 된다. 비밀번호를 해시하는 이유와 정확히 같다.
+CREATE TABLE IF NOT EXISTS tb_session (
+    token_hash          TEXT PRIMARY KEY,            -- sha256(hex) of token
+    user_id             TEXT NOT NULL REFERENCES tb_user(user_id) ON DELETE CASCADE,
+    created_at          TEXT NOT NULL,
+    expires_at          TEXT NOT NULL                -- 발급 + 7일
+);
+
+CREATE INDEX IF NOT EXISTS ix_session_user ON tb_session(user_id);
+CREATE INDEX IF NOT EXISTS ix_session_exp  ON tb_session(expires_at);
+
+-- ────────────────────────────────────────────────────────────
+-- 로그인 실패 기록 (이메일당 rate limit)
+-- ────────────────────────────────────────────────────────────
+-- ★ 이메일 원문이 아니라 sha256 지문만 남긴다. 실패 로그가 곧 '가입자 이메일 명단'이 되면 안 된다.
+CREATE TABLE IF NOT EXISTS tb_login_try (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    email_hash          TEXT NOT NULL,
+    at                  TEXT NOT NULL                -- ISO8601 (초 정밀도, 문자열 비교로 정렬됨)
+);
+
+CREATE INDEX IF NOT EXISTS ix_login_try ON tb_login_try(email_hash, at);

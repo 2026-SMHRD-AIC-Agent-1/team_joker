@@ -60,6 +60,10 @@ class Repository:
             ("target_preset", "TEXT"),
             ("is_approximation", "INTEGER"),   # 레거시(파생)
             ("fidelity", "TEXT"),              # 정본
+            # 계약 v0.4 — 진단의 소유자. NULL = 비회원 진단(주인이 없다).
+            # ★ 이 ALTER 가 없으면 이미 joker.db 가 깔린 PC 에서 "no such column: user_id" 로
+            #   이력·저장이 통째로 죽는다. CREATE TABLE IF NOT EXISTS 는 열을 안 만든다.
+            ("user_id", "TEXT"),
         ],
     }
 
@@ -96,8 +100,9 @@ class Repository:
                        (run_id, created_at, env_profile, backend, model_victim,
                         target_preset, fidelity, is_approximation,
                         target_prompt, target_prompt_hash, persona, org,
-                        inconclusive, grade, comparable, asr_before, asr_after, asr_delta, patched_prompt)
-                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                        inconclusive, grade, comparable, asr_before, asr_after, asr_delta,
+                        patched_prompt, user_id)
+                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                     (
                         run_id, _now(),
                         state.get("env_profile"), backend, victim_model,
@@ -113,6 +118,7 @@ class Repository:
                         report.asr_after if report else None,
                         report.delta if report else None,
                         state.get("patched_prompt"),
+                        state.get("user_id"),   # 비회원 진단이면 None → NULL
                     ),
                 )
 
@@ -174,20 +180,49 @@ class Repository:
         d["applied_patterns"] = patterns
         return d
 
-    def list_runs(self) -> list[dict]:
-        """이력 화면용 요약 목록(최신순)."""
+    _LIST_COLS = """SELECT run_id, created_at, grade, inconclusive, asr_before, asr_after, persona,
+                           model_victim AS target_model, fidelity, is_approximation, backend, user_id
+                    FROM tb_diagnosis """
+    # ★ backend 도 온다(0904). mock 런은 '가짜 응답으로 만든 100%→0%' 라서 이력 목록에서
+    #   제일 좋아 보인다 — 구분 없이 나열하면 발표 중에 그 행을 근거로 읽게 된다.
+    # ★ 목록에도 모델이 온다(계약 v0.2). 모델이 다르면 등급을 나란히 비교하면 안 되므로
+    #   이력 화면이 행마다 모델명을 찍어야 한다.
+
+    def list_runs(self, user_id: str | None = None) -> list[dict]:
+        """이력 화면용 요약 목록(최신순).
+
+        ★ 소유자 범위를 SQL 에서 자른다 — 접근 제어는 화면이 아니라 질의에서 한다.
+          화면에서 거르면 응답에는 이미 남의 데이터가 실려 있고, 개발자도구로 그대로 보인다.
+        - user_id=None (비회원): 주인이 없는 진단(user_id IS NULL)만. 남의 회원 진단은 안 보인다.
+        - user_id 지정 (회원): 본인 것만.
+        """
         con = self._connect()
         con.row_factory = sqlite3.Row
         try:
-            rows = con.execute(
-                """SELECT run_id, created_at, grade, inconclusive, asr_before, asr_after, persona,
-                          model_victim AS target_model, fidelity, is_approximation, backend
-                   FROM tb_diagnosis ORDER BY created_at DESC"""
-                # ★ backend 도 온다(0904). mock 런은 '가짜 응답으로 만든 100%→0%' 라서 이력 목록에서
-                #   제일 좋아 보인다 — 구분 없이 나열하면 발표 중에 그 행을 근거로 읽게 된다.
-                # ★ 목록에도 모델이 온다(계약 v0.2). 모델이 다르면 등급을 나란히 비교하면 안 되므로
-                #   이력 화면이 행마다 모델명을 찍어야 한다.
-            ).fetchall()
+            if user_id is None:
+                rows = con.execute(
+                    self._LIST_COLS + "WHERE user_id IS NULL ORDER BY created_at DESC").fetchall()
+            else:
+                rows = con.execute(
+                    self._LIST_COLS + "WHERE user_id = ? ORDER BY created_at DESC",
+                    (user_id,)).fetchall()
         finally:
             con.close()
         return [dict(r) for r in rows]
+
+    def delete_run(self, run_id: str, user_id: str) -> bool:
+        """본인 소유 진단 1건 삭제. 지운 행이 없으면 False(호출자는 404 로 답한다).
+
+        ★ WHERE 에 user_id 를 같이 건다 — '조회해서 확인 후 삭제' 2단계로 하면 그 사이에
+          경쟁 조건이 생기고, 무엇보다 확인을 빠뜨린 코드 경로가 하나만 있어도 뚫린다.
+        ★ 자식 행(attempt/asset/pattern)은 schema.sql 의 ON DELETE CASCADE 가 지운다
+          (_connect 가 PRAGMA foreign_keys = ON 을 켜기 때문에 실제로 동작한다).
+        """
+        con = self._connect()
+        try:
+            with con:
+                cur = con.execute(
+                    "DELETE FROM tb_diagnosis WHERE run_id = ? AND user_id = ?", (run_id, user_id))
+            return cur.rowcount > 0
+        finally:
+            con.close()
