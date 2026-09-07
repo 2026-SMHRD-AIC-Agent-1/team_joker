@@ -164,7 +164,8 @@ def create_app():
         # ★ IDOR 차단. 이 검사가 없으면 run_id 만 알면 남의 고객사 시스템 지시문이 통째로 보인다.
         if not _may_view(run.get("user_id"), viewer):
             return _not_found(run_id)
-        return serialize.serialize_run(run)
+        # ★ 게이팅은 serialize 가 한다 — 비회원 응답에는 처방문 전문·시도별 상세가 애초에 안 담긴다.
+        return serialize.serialize_run(run, viewer=viewer)
 
     @app.get("/api/runs")
     def list_runs(request: Request):

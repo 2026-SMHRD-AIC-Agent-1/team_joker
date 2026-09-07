@@ -2,7 +2,7 @@
 
 경계 규칙: 이 파일은 joker 를 import 하지 않는다(test_import_boundaries 강제).
 구동: 프로젝트 루트(model/)에서  streamlit run ui/streamlit_app.py
-계약: contracts/api_contract.md (v0.3). 화면 명세는 그 문서의 '화면팀에게' 절.
+계약: contracts/api_contract.md (v0.4). 화면 명세는 그 문서의 '화면팀에게' 절.
 """
 
 import json
@@ -22,15 +22,120 @@ st.set_page_config(page_title="Chat Shield — 챗봇 보안 진단", page_icon=
 
 
 # ── API 호출 (엔진 직접 import 아님) ─────────────────────────
+def _auth_headers() -> dict:
+    """로그인 상태면 Bearer 를 붙인다. 없으면 빈 헤더 = 비회원으로 동작(계약 v0.4)."""
+    token = st.session_state.get("token")
+    return {"Authorization": f"Bearer {token}"} if token else {}
+
+
 def api_get(base: str, path: str):
-    r = httpx.get(base.rstrip("/") + path, timeout=TIMEOUT)
+    r = httpx.get(base.rstrip("/") + path, headers=_auth_headers(), timeout=TIMEOUT)
     r.raise_for_status()
     return r.json()
 
 
 def api_post(base: str, path: str, body: dict):
-    r = httpx.post(base.rstrip("/") + path, json=body, timeout=TIMEOUT)
+    r = httpx.post(base.rstrip("/") + path, json=body, headers=_auth_headers(), timeout=TIMEOUT)
     return r  # 상태코드로 400/502 를 화면이 분기한다
+
+
+def api_delete(base: str, path: str):
+    return httpx.delete(base.rstrip("/") + path, headers=_auth_headers(), timeout=TIMEOUT)
+
+
+def err_msg(r) -> str:
+    """에러 응답에서 사용자에게 보여줄 한 줄. 서버가 준 문구를 그대로 쓴다
+    (화면이 자기 문구를 지어내면 서버와 갈린다 — 특히 로그인 실패 문구는 통일이 중요하다)."""
+    try:
+        return r.json()["error"]["message"]
+    except Exception:  # noqa: BLE001
+        return f"요청에 실패했습니다 ({r.status_code})"
+
+
+# ── 계정 (사이드바) ──────────────────────────────────────────
+def _login_with(base: str, email: str, password: str) -> str | None:
+    """성공하면 None, 실패하면 보여줄 오류 문구."""
+    r = api_post(base, "/api/auth/login", {"email": email, "password": password})
+    if r.status_code != 200:
+        return err_msg(r)
+    body = r.json()
+    st.session_state["token"] = body["token"]
+    st.session_state["user_email"] = body["user"]["email"]
+    return None
+
+
+def render_account(base: str):
+    """사이드바 계정 영역.
+
+    ★ 회원가입 화면에 '무엇을 수집하지 않는가'를 대놓고 쓴다. 보안 진단 서비스가 자기 수집이
+      과하면 자기모순이고, 이 한 줄이 오히려 신뢰 장치가 된다(개인정보보호법 §16 최소수집).
+    """
+    with st.sidebar:
+        st.header("계정")
+        email = st.session_state.get("user_email")
+        if email:
+            st.success(f"👤 {email}")
+            if st.button("로그아웃", use_container_width=True):
+                try:
+                    api_post(base, "/api/auth/logout", {})
+                except Exception:  # noqa: BLE001 — 서버가 죽어도 로컬 토큰은 버린다
+                    pass
+                st.session_state.pop("token", None)
+                st.session_state.pop("user_email", None)
+                st.rerun()
+            return
+
+        st.caption("로그인하면 **처방문 전문 · 시도별 상세 · 진단 이력**을 볼 수 있습니다.")
+        tab_in, tab_up = st.tabs(["로그인", "회원가입"])
+
+        with tab_in:
+            with st.form("form_login"):
+                em = st.text_input("이메일", key="li_email")
+                pw = st.text_input("비밀번호", type="password", key="li_pw")
+                submitted = st.form_submit_button("로그인", use_container_width=True)
+            if submitted:
+                problem = _login_with(base, em, pw)
+                if problem:
+                    st.error(problem)   # ★ 어느 항목이 틀렸는지 구분하지 않는다(계정 열거 방지)
+                else:
+                    st.rerun()
+
+        with tab_up:
+            with st.form("form_signup"):
+                em2 = st.text_input("이메일", key="su_email")
+                pw2 = st.text_input("비밀번호 (영문+숫자 8자 이상)", type="password", key="su_pw")
+                pw3 = st.text_input("비밀번호 확인", type="password", key="su_pw2")
+                submitted2 = st.form_submit_button("회원가입", use_container_width=True)
+            st.caption("※ **이름 · 휴대폰번호 · 생년월일은 수집하지 않습니다.** "
+                       "진단 이력 저장에 필요한 최소 정보만 받습니다.")
+            st.caption("※ 비밀번호는 scrypt 단방향 해시로 저장되며 평문으로 보관하지 않습니다.")
+            if submitted2:
+                if pw2 != pw3:
+                    st.error("비밀번호가 일치하지 않습니다.")
+                else:
+                    r = api_post(base, "/api/auth/signup", {"email": em2, "password": pw2})
+                    if r.status_code != 201:
+                        st.error(err_msg(r))
+                    else:
+                        problem = _login_with(base, em2, pw2)   # 가입 후 바로 로그인
+                        if problem:
+                            st.warning("가입은 됐습니다. 로그인 탭에서 로그인해 주세요.")
+                        else:
+                            st.rerun()
+
+
+# ── 게이팅 ───────────────────────────────────────────────────
+def render_gate(title: str, total, hidden, unlock: str = ""):
+    """비회원에게 '무엇이 얼마나 가려졌는지'를 알린다.
+
+    ★ 이 함수는 가려진 '내용'을 인자로 받지 않는다 — 서버가 애초에 안 내려보내기 때문이다.
+      CSS 블러였다면 개발자도구로 3초면 벗겨진다. 보안 도구가 클라이언트에서 가리면 자기모순이다.
+    ★ 가려진 '양'을 숫자로 말한다. 막연히 흐려두면 '별거 없나 보다'로 읽혀서 가입 동기가 죽는다.
+    """
+    st.info(f"🔒 **{title}** — 전체 {total} 중 **{hidden} 비공개**"
+            + (f"\n\n{unlock}" if unlock else ""))
+    st.caption("무료 · 30초 · 카드 정보 없음 · 이름 · 연락처 · 생년월일을 수집하지 않습니다.")
+    st.caption("👈 왼쪽 사이드바 **계정 → 회원가입** 에서 바로 가입할 수 있습니다.")
 
 
 # ── 사이드바: 연결 · 상태 · 진단 대상 모델 ────────────────────
@@ -221,14 +326,25 @@ def render_done(run: dict):
                        + " · 규칙 층 기준이라 실제 차단량은 이보다 많습니다(ML 층 미포함).")
 
     # 처방된 지시문 (복사 버튼은 st.code 우측 상단에 기본 제공)
+    # ★ 게이팅 경계: 위(등급·처방 전/후 ASR·개선폭·기법별 차트)는 전부 무료 공개다.
+    #   여기부터가 '해결책'이라 비회원에게는 서버가 앞 2줄만 내려준다.
+    gated = run.get("gated") or {}
     st.subheader("처방된 지시문")
     st.caption("이 지시문으로 교체하면 위 '처방 후' 수준으로 방어력이 올라갑니다. 우측 상단 아이콘으로 복사하세요.")
     st.code(rep.get("patched_prompt") or "", language="text")
+    hidden_lines = gated.get("patched_prompt_hidden_lines") or 0
+    if gated.get("is_gated") and hidden_lines:
+        render_gate("처방문 전문", f"{gated.get('patched_prompt_total_lines', 0)}줄",
+                    f"{hidden_lines}줄", gated.get("unlock", ""))
 
     render_ko_verification()
 
     # 시도 상세 — 같은 attack_id 를 처방 전/후로 묶어서
     with st.expander("시도별 상세 (처방 전 vs 후)"):
+        if gated.get("is_gated") and (gated.get("attempts_hidden") or 0):
+            render_gate("시도별 상세 로그", f"{gated.get('attempts_total', 0)}건",
+                        f"{gated['attempts_hidden']}건", gated.get("unlock", ""))
+            return
         by_id: dict = {}
         for a in rep.get("attempts", []):
             by_id.setdefault(a["attack_id"], {})[a["round_no"]] = a
@@ -271,7 +387,14 @@ def render_error(run: dict):
 # ── 이력 ────────────────────────────────────────────────────
 def render_history(base: str):
     with st.expander("진단 이력"):
+        logged_in = bool(st.session_state.get("token"))
+        if not logged_in:
+            # 초안 slide14 ④ — 비회원에게는 '왜 안 남는지'를 말해준다.
+            st.info("로그인하면 진단 이력이 저장됩니다. "
+                    "비회원 진단 결과는 run_id 를 잃어버리면 다시 열 수 없습니다.")
         try:
+            # ★ 서버가 소유자 범위로 잘라서 준다(회원=본인 것만 / 비회원=주인 없는 것만).
+            #   화면에서 거르지 않는 이유: 응답에 이미 실려 있으면 개발자도구로 그대로 보인다.
             runs = api_get(base, "/api/runs").get("runs", [])
         except Exception as e:  # noqa: BLE001
             st.caption(f"이력을 못 불러왔습니다: {e}")
@@ -300,6 +423,25 @@ def render_history(base: str):
             st.session_state["run_id"] = picked.strip()
             st.session_state["polling"] = False
             st.rerun()
+
+        # 삭제 — 개인정보 자기결정권. 본인 소유만 지워지고, 남의 것은 서버가 404 로 답한다.
+        if logged_in:
+            ids = [r["run_id"] for r in runs]
+            with st.form("form_delete_run"):
+                victim = st.selectbox("삭제할 진단", ids, key="del_run_id")
+                confirm = st.checkbox("이 진단과 공격 로그를 영구 삭제합니다", key="del_confirm")
+                if st.form_submit_button("삭제", use_container_width=True):
+                    if not confirm:
+                        st.warning("삭제 확인란을 체크해 주세요.")
+                    else:
+                        resp = api_delete(base, f"/api/runs/{victim}")
+                        if resp.status_code == 204:
+                            if st.session_state.get("run_id") == victim:
+                                st.session_state.pop("run_id", None)
+                            st.success(f"삭제했습니다: {victim}")
+                            st.rerun()
+                        else:
+                            st.error(err_msg(resp))
 
 
 # ── 탐지 (JOKER-KO 1차 필터) ─────────────────────────────────
@@ -433,6 +575,8 @@ def main():
     st.title("🛡️ Chat Shield — 한국어 챗봇 보안 자동 진단")
     st.caption("**JOKER-KO 탐지기**가 입력을 실시간으로 걸러내고, **진단 엔진**이 시스템 지시문을 "
                "진단→처방→재진단합니다. 두 층은 따로 돌고, 진단 결과가 탐지기 배치를 처방합니다.")
+    # 계정 영역을 먼저 그린다(사이드바 최상단). base 는 직전 실행에서 기억한 값을 쓴다.
+    render_account(st.session_state.get("api_base", DEFAULT_API))
     base, target, mode = sidebar()
     tab_home, tab_detect, tab_diag = st.tabs(
         ["🏠 대시보드", "🔍 실시간 탐지 (JOKER-KO)", "🩺 정밀 진단 (엔진)"])

@@ -301,3 +301,47 @@
 
 비밀번호 대조는 `hmac.compare_digest`(상수 시간). `==` 는 비교 시간이 값에 따라 달라져
 타이밍 공격에 쓰인다.
+
+
+---
+
+## ★ 비회원 게이팅 (v0.4 · `GET /api/runs/{run_id}`)
+
+원칙 한 줄: **위험 사실은 절대 가리지 않는다. 가리는 것은 '해결책'과 '증거의 상세'다.**
+
+| | 비회원 | 회원 |
+|---|---|---|
+| `report.grade` · `asr_before` · `asr_after` · **`asr_delta`** | 공개 | 공개 |
+| `report.by_technique` (기법별 차트) | 공개 | 공개 |
+| `report.applied_patterns` (P0x ID) · `filter_recommendation` | 공개 | 공개 |
+| `recon.assets` (보호 자산 **이름**) · `target` (진단 범위·대리 모델 고지) | 공개 | 공개 |
+| `report.patched_prompt` | **앞 2줄만** | 전문 |
+| `report.attempts[]` (시도별 상세) | **`[]`** | 전량 |
+
+응답에 항상 `gated` 블록이 따라온다(회원은 `{"is_gated": false}`).
+
+```json
+"gated": {
+  "is_gated": true,
+  "patched_prompt_total_lines": 12,
+  "patched_prompt_hidden_lines": 10,
+  "attempts_total": 36,
+  "attempts_hidden": 36,
+  "unlock": "무료 회원가입 시 전체 처방문과 시도별 상세를 볼 수 있습니다."
+}
+```
+
+**왜 개선폭까지 공개인가**: 처방 후 수치(59.3 → 8.1)를 보여주고 **그 아래** 처방문을 가려야
+가입 동기가 최대가 된다. 개선폭까지 가리면 "가입하면 뭘 얻는지"를 몰라 그냥 이탈한다.
+보안 SaaS 표준(SSL Labs · Snyk · Qualys)이 free scan + gated remediation 인 이유다.
+
+**왜 CSS 블러가 아닌가**: 블러는 개발자도구로 3초면 벗겨진다. 보안 진단 도구가 클라이언트에서
+가리면 자기모순이고, 시연 중에 그 자리에서 벗겨 보일 수 있다. **서버가 안 보내면 벗길 게 없다.**
+`tests/test_gating.py` 가 ①비회원 응답 JSON 문자열에 가려진 줄이 물리적으로 없는지 ②화면 소스에
+`blur(` 같은 클라이언트 가림 처리가 없는지를 함께 검사한다.
+
+**가려진 양은 숫자로 말한다**: "6줄 중 4줄 비공개". 막연히 흐려두면 '별거 없나 보다'로 읽혀서
+가입 동기가 죽는다.
+
+> 비회원 1회 제한·게이팅은 **가입 유도 장치지 접근 제어가 아니다.** 접근 제어는 소유자 규칙(위)이
+> 담당한다. 로그인한 회원이 주인 없는(비회원) 진단을 열면 게이팅 없이 보이는데, 이는 의도된 동작이다.

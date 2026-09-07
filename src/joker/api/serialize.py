@@ -6,6 +6,18 @@
    - patched_prompt 는 '마스킹하지 않는다' — PATCH 가 값이 아니라 자산 '이름'만 넣는 설계라
      원래 값이 없고, 복사 버튼으로 그대로 쓰는 산출물이라 [REDACTED] 로 오염되면 안 된다.
      (자산 값이 절대 안 들어가는 것은 PATCH 노드가 보장한다 — 함정⑥/§5.)
+
+★ 비회원 게이팅(v0.4)도 여기 있다. 원칙은 하나다:
+   **위험 사실은 절대 가리지 않는다. 가리는 것은 '해결책'과 '증거의 상세'다.**
+   공개 = 등급 · 처방 전/후 ASR · 개선폭 · 기법별 차트 · 보호 자산 이름 · 진단 범위 고지
+   게이팅 = 처방문 전문 · 시도별 상세 로그
+   개선폭까지 가리면 "가입하면 뭘 얻는지"를 몰라 그냥 이탈한다. 처방 후 수치를 보여주고
+   그 아래 처방문을 가려야 가입 동기가 최대가 된다(SSL Labs·Snyk 의 free scan + gated remediation).
+
+★★ 왜 CSS 블러가 아니라 여기(서버)인가:
+   블러는 개발자도구로 3초면 벗겨진다. 보안 진단 도구가 클라이언트에서 가리면 자기모순이고,
+   시연 중에 심사위원이 그 자리에서 벗겨 보일 수 있다. **서버가 안 보내면 벗길 게 없다.**
+   tests/test_gating.py 가 '비회원 응답 JSON 문자열 안에 처방문 3번째 줄이 물리적으로 없다'를 검사한다.
 """
 
 from __future__ import annotations
@@ -83,11 +95,45 @@ def _attempt(a: dict) -> dict:
     }
 
 
-def serialize_run(run: dict) -> dict:
+# 비회원에게 보여줄 처방문 미리보기 줄 수. 0 이면 "뭘 얻는지" 감이 안 오고,
+# 너무 많으면 굳이 가입할 이유가 없어진다. 2줄 = 첫 문장 + 방어 패턴 하나의 시작.
+GATE_PREVIEW_LINES = 2
+GATE_UNLOCK_MESSAGE = "무료 회원가입 시 전체 처방문과 시도별 상세를 볼 수 있습니다."
+
+
+def _apply_gate(out: dict) -> dict:
+    """비회원 응답에서 '해결책'을 덜어낸다(제자리 변경). 위험 사실은 하나도 안 건드린다.
+
+    ★ 가려진 '양'을 숫자로 같이 내려보낸다. 막연히 흐려두면 사용자는 '별거 없나 보다' 로 읽는다.
+      "12줄 중 10줄이 비공개" 처럼 숫자가 붙어야 가입 동기가 생긴다.
+    """
+    report = out.get("report") or {}
+    # 빈 줄은 세지 않는다 — 처방문은 문단 사이가 비어 있어서, 그대로 세면 '가려진 줄 수'가 부풀려진다.
+    lines = [ln for ln in (report.get("patched_prompt") or "").splitlines() if ln.strip()]
+    attempts = report.get("attempts") or []
+
+    report["patched_prompt"] = "\n".join(lines[:GATE_PREVIEW_LINES])
+    report["attempts"] = []          # ★ 잘라내는 게 아니라 아예 안 담는다
+
+    out["gated"] = {
+        "is_gated": True,
+        "patched_prompt_total_lines": len(lines),
+        "patched_prompt_hidden_lines": max(0, len(lines) - GATE_PREVIEW_LINES),
+        "attempts_total": len(attempts),
+        "attempts_hidden": len(attempts),
+        "unlock": GATE_UNLOCK_MESSAGE,
+    }
+    return out
+
+
+def serialize_run(run: dict, viewer: dict | None = None) -> dict:
     """Repository.load_run() 결과 → GET /api/runs/{id} 응답(done/inconclusive).
 
     inconclusive 면 등급·ASR 을 null 로 두고 report.reason 을 채운다
-    (함정②: '진단 불가'를 '안전'으로 그리면 안 된다)."""
+    (함정②: '진단 불가'를 '안전'으로 그리면 안 된다).
+
+    viewer=None(비회원)이면 _apply_gate 로 처방문 전문·시도별 상세를 **응답에서 뺀다**.
+    viewer 가 있으면 v0.3 과 완전히 같은 응답이다(계약 하위호환)."""
     head = run
     attempts = run.get("attempts", [])
     assets = run.get("assets", [])
@@ -114,6 +160,9 @@ def serialize_run(run: dict) -> dict:
             "reason": "보호할 값 자산(secret_value)이 0개입니다. 진단할 대상이 없어 등급을 매기지 않습니다.",
             "asr_before": None, "asr_after": None, "asr_delta": None, "attempts": [],
         }
+        # 진단 불가는 처방 자체가 없다 → 가릴 것도 없다. 그래도 키는 항상 내려보낸다
+        # (화면이 out["gated"] 존재 여부로 분기하지 않게 — 없는 키는 곧 버그가 된다).
+        out["gated"] = {"is_gated": False}
         return out
     out["report"] = {
         "grade": head.get("grade"),
@@ -131,6 +180,9 @@ def serialize_run(run: dict) -> dict:
         "patched_prompt": head.get("patched_prompt"),   # ★ 마스킹 안 함(위 docstring)
         "attempts": [_attempt(a) for a in attempts],
     }
+    if viewer is None:
+        return _apply_gate(out)
+    out["gated"] = {"is_gated": False}
     return out
 
 
