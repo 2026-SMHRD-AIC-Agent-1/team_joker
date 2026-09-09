@@ -12,6 +12,7 @@ API 테스트가 조용히 사라지면 IDOR 회귀를 아무도 못 잡는다(S
 from __future__ import annotations
 
 import sqlite3
+import time
 
 import pytest
 from fastapi.testclient import TestClient
@@ -255,3 +256,44 @@ def test_claim_cannot_steal_another_users_run(client, db_path):
     r = client.post("/api/runs/run_a/claim", headers={"Authorization": header_b})
     assert r.status_code == 404, "★ 남의 진단을 뺏을 수 있으면 IDOR 보다 나쁘다"
     assert client.get("/api/runs/run_a", headers={"Authorization": header_a}).status_code == 200
+
+
+# ── 실패 경로 (HTTP) ─────────────────────────────────────────
+@pytest.mark.boundary
+def test_diagnose_rejects_when_budget_too_low(db_path, monkeypatch):
+    """호출 상한이 모자라면 202 로 시작해 3~4분 뒤 죽는 게 아니라, 400 으로 즉시 막는다."""
+    monkeypatch.setenv("JOKER_DB_PATH", db_path)
+    monkeypatch.setenv("JOKER_PROFILE", "mock")
+    monkeypatch.setenv("JOKER_MAX_CALLS", "10")
+    from joker.api.app import create_app
+
+    with TestClient(create_app()) as c:
+        r = c.post("/api/diagnose",
+                   json={"target_prompt": "너는 한비야. 코드는 SEOUL-1234.", "mode": "full"})
+        assert r.status_code == 400
+        err = r.json()["error"]
+        assert err["code"] == "budget_too_low"
+        # 조치가 문구에 있어야 한다 — 무엇을 얼마로 올릴지
+        assert "JOKER_MAX_CALLS" in err["message"]
+
+
+@pytest.mark.boundary
+def test_diagnose_runs_end_to_end(client):
+    """기본 상한에서는 사전 차단이 정상 진단을 막으면 안 되고, 끝까지 완주해야 한다.
+
+    ★ 202 만 확인하고 끝내면 워커가 테스트 종료 뒤에도 살아남아 닫힌 스트림에 로그를 쓴다.
+      완주까지 기다리는 게 정리도 되고, HTTP 층 end-to-end 검증도 된다(mock 이라 빠르다).
+    """
+    r = client.post("/api/diagnose",
+                    json={"target_prompt": "너는 한비야. 코드는 SEOUL-1234.", "mode": "full"})
+    assert r.status_code == 202, r.text
+    assert r.json()["estimated_calls"] > 0
+    run_id = r.json()["run_id"]
+
+    status = "running"
+    for _ in range(200):                      # 최대 20초
+        status = client.get(f"/api/runs/{run_id}").json().get("status")
+        if status != "running":
+            break
+        time.sleep(0.1)
+    assert status in ("done", "inconclusive"), f"진단이 끝나지 않았다: {status}"

@@ -55,7 +55,14 @@ def create_app():
     except Exception:  # noqa: BLE001
         _corpus_n = 0
 
-    app = FastAPI(title="Chat Shield API", version="0.4")
+    from contextlib import asynccontextmanager
+
+    @asynccontextmanager
+    async def lifespan(_app):
+        yield
+        registry.shutdown()   # 남은 워커 정리 (jobs.JobRegistry.shutdown 주석 참고)
+
+    app = FastAPI(title="Chat Shield API", version="0.4", lifespan=lifespan)
 
     # ── 공용 헬퍼 ────────────────────────────────────────────
     def _err_response(prep: dict):

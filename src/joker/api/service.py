@@ -65,6 +65,17 @@ def prepare(body: dict, base_settings, data_dir: str, user_id: str | None = None
                         "대상 모델 연결에 실패했습니다. base_url·api_key·모델명을 확인하세요.")
 
     est = estimate_calls(len(attacks), full=settings.full_sweep)
+
+    # ★ 호출 상한이 모자라면 '3분 뒤에' 가 아니라 지금 막는다 (2026-09-09).
+    #   적응형 스크리닝은 취약 기법이 많으면 전량까지 올라간다 — 그래서 하한이 아니라
+    #   victim_max 로 검사한다(usage.py: "사용자 돈이 걸린 고지를 하한만 말하면 안 된다").
+    #   여기서 안 막으면 BudgetExceeded 로 중간에 죽고 그때까지의 결과도 저장되지 않는다.
+    if est["victim_max"] > settings.max_calls:
+        return _err(400, "budget_too_low",
+                    f"이 진단은 대상 모델을 최대 {est['victim_max']}회 호출할 수 있는데 "
+                    f"호출 상한이 {settings.max_calls}회입니다. "
+                    f"JOKER_MAX_CALLS 를 {est['victim_max']} 이상으로 올리세요.")
+
     run_id = f"run_{datetime.datetime.now():%Y%m%d_%H%M%S}_{secrets.token_hex(2)}"
     return {
         "ok": True, "run_id": run_id, "settings": settings, "providers": providers,
