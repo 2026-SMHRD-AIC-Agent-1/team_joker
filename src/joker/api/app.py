@@ -175,6 +175,21 @@ def create_app():
         except Exception:  # noqa: BLE001 — DB 가 아직 없으면 빈 목록
             return {"runs": []}
 
+    @app.post("/api/runs/{run_id}/claim")
+    def claim_run(run_id: str, request: Request):
+        """비회원으로 돌린 진단을 방금 가입한 회원 것으로 귀속시킨다(주인 없는 진단만)."""
+        viewer = _viewer(request)
+        if viewer is None:
+            return _error(401, "auth_required", "로그인이 필요합니다.")
+        try:
+            claimed = repo.claim_run(run_id, viewer["user_id"])
+        except Exception:  # noqa: BLE001
+            claimed = False
+        if not claimed:
+            # 없거나 이미 주인이 있는 진단. 어느 쪽인지 구분해 알려주지 않는다.
+            return _not_found(run_id)
+        return Response(status_code=204)
+
     @app.delete("/api/runs/{run_id}")
     def delete_run(run_id: str, request: Request):
         """진단 결과 삭제(개인정보 자기결정권). 본인 소유만."""

@@ -1,0 +1,16 @@
+# Chat Shield 테마. 화면 색을 코드에 흩뿌리지 않고 여기 한 곳에서 잡는다.
+# 심사는 프로젝터로 본다 → 어두운 배경은 대비가 죽어서 밝은 테마로 고정한다.
+[theme]
+base = "light"
+primaryColor = "#1D4ED8"            # 신뢰감 있는 딥블루. 버튼·강조
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F8FAFC"
+textColor = "#0F172A"
+font = "sans serif"
+
+# ⚠️ [server] headless = true 를 여기에 넣지 마라.
+#    켜면 streamlit run 해도 브라우저 탭이 자동으로 안 열린다(서버는 떠 있는데 화면이 안 뜬 걸로 보인다).
+#    headless 는 서버·컨테이너에서만 쓰는 옵션이고, 그때는 실행할 때 --server.headless true 로 준다.
+
+[browser]
+gatherUsageStats = false

@@ -229,3 +229,29 @@ def test_member_sees_full_prescription_of_own_run(client, db_path):
     assert r.status_code == 200
     assert GATED_LINE in r.text
     assert r.json()["gated"] == {"is_gated": False}
+
+
+@pytest.mark.boundary
+def test_claim_anonymous_run_after_signup(client, db_path):
+    """비회원으로 진단 → 가입 → 방금 그 진단이 내 이력에 들어온다(제품의 전환 동선)."""
+    _insert_run(db_path, "run_anon", None)
+    _, header_a = _signup_login(client, EMAIL_A)
+
+    assert client.post("/api/runs/run_anon/claim").status_code == 401, "비회원은 귀속 불가"
+    assert client.post("/api/runs/run_anon/claim",
+                       headers={"Authorization": header_a}).status_code == 204
+    mine = client.get("/api/runs", headers={"Authorization": header_a}).json()["runs"]
+    assert [r["run_id"] for r in mine] == ["run_anon"]
+    # 이제 주인이 있으므로 비회원 목록에서는 사라진다
+    assert client.get("/api/runs").json()["runs"] == []
+
+
+@pytest.mark.boundary
+def test_claim_cannot_steal_another_users_run(client, db_path):
+    user_a, header_a = _signup_login(client, EMAIL_A)
+    _, header_b = _signup_login(client, EMAIL_B)
+    _insert_run(db_path, "run_a", user_a)
+
+    r = client.post("/api/runs/run_a/claim", headers={"Authorization": header_b})
+    assert r.status_code == 404, "★ 남의 진단을 뺏을 수 있으면 IDOR 보다 나쁘다"
+    assert client.get("/api/runs/run_a", headers={"Authorization": header_a}).status_code == 200

@@ -210,6 +210,24 @@ class Repository:
             con.close()
         return [dict(r) for r in rows]
 
+    def claim_run(self, run_id: str, user_id: str) -> bool:
+        """주인 없는(user_id IS NULL) 진단을 이 회원 것으로 귀속시킨다.
+
+        왜 필요한가: 비회원으로 진단 → 게이트에서 가입, 이 동선이 제품의 전환 지점인데
+        가입 직후 '내 이력' 이 비어 있으면 방금 한 진단을 다시 못 연다.
+        ★ `WHERE user_id IS NULL` 이 안전장치다 — 이미 주인이 있는 진단은 절대 못 뺏는다.
+          주인 없는 진단은 애초에 run_id 만 알면 누구나 볼 수 있으므로, 귀속으로 새로 새는 정보는 없다.
+        """
+        con = self._connect()
+        try:
+            with con:
+                cur = con.execute(
+                    "UPDATE tb_diagnosis SET user_id = ? WHERE run_id = ? AND user_id IS NULL",
+                    (user_id, run_id))
+            return cur.rowcount > 0
+        finally:
+            con.close()
+
     def delete_run(self, run_id: str, user_id: str) -> bool:
         """본인 소유 진단 1건 삭제. 지운 행이 없으면 False(호출자는 404 로 답한다).
 

@@ -107,3 +107,19 @@ def test_run_saves_owner_when_logged_in(repo, tmp_path):
     repo.save_run({"run_id": "run_y", "target_prompt": "t", "attempts": [], "report": None,
                    "user_id": "userA"})
     assert [r["run_id"] for r in repo.list_runs(user_id="userA")] == ["run_y"]
+
+
+@pytest.mark.boundary
+def test_claim_only_works_on_unowned_run(repo, tmp_path):
+    """비회원 진단 → 가입 동선. 주인 없는 진단만 귀속되고, 남의 것은 절대 못 뺏는다."""
+    db = str(tmp_path / "t.db")
+    _insert_run(db, "run_anon", None)
+    _insert_run(db, "run_b", "userB")
+
+    assert repo.claim_run("run_anon", "userA") is True
+    assert [r["run_id"] for r in repo.list_runs(user_id="userA")] == ["run_anon"]
+    # 한 번 주인이 생기면 두 번째 사람은 못 가져간다
+    assert repo.claim_run("run_anon", "userC") is False
+    assert repo.claim_run("run_b", "userA") is False, "★ 남의 진단을 뺏을 수 있으면 IDOR 보다 나쁘다"
+    assert [r["run_id"] for r in repo.list_runs(user_id="userB")] == ["run_b"]
+    assert repo.claim_run("없는run", "userA") is False
