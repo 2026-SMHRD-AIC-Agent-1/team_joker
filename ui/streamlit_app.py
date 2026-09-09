@@ -37,10 +37,13 @@ TIMEOUT = 30.0
 METRICS_PATH = Path(__file__).resolve().parents[1] / "data" / "evidence" / "headline_metrics.json"
 
 GRADE_COLOR = {"A": "#0F9D6E", "B": "#0EA5E9", "C": "#D97706", "D": "#EA580C", "F": "#DC2626"}
-NAV = [("home", "홈"), ("diagnose", "진단"), ("detect", "실시간 탐지"), ("history", "내 이력")]
+# 앱 셸의 좌측 내비. 랜딩(home)은 여기 없다 — 마케팅 셸은 내비를 쓰지 않는다.
+NAV = [("dashboard", "대시보드"), ("diagnose", "진단"), ("detect", "실시간 탐지"),
+       ("history", "이력"), ("settings", "설정")]
+APP_VIEWS = {k for k, _ in NAV}
 
 st.set_page_config(page_title="Chat Shield — 한국어 챗봇 보안 진단", page_icon="🛡️",
-                   layout="wide", initial_sidebar_state="collapsed")
+                   layout="wide", initial_sidebar_state="expanded")
 
 
 def esc(s) -> str:
@@ -66,9 +69,12 @@ st.markdown("""
 /* ── Streamlit 기본 크롬 제거 ───────────────────────────── */
 [data-testid="stHeader"], [data-testid="stToolbar"], [data-testid="stDecoration"],
 [data-testid="stAppDeployButton"], [data-testid="stMainMenu"], [data-testid="stStatusWidget"],
-[data-testid="stSidebar"], [data-testid="stSidebarCollapsedControl"], #MainMenu, footer{
+#MainMenu, footer{
   display:none !important;
 }
+/* ★ 사이드바는 더 이상 통째로 숨기지 않는다 — 앱 셸의 내비가 사이드바다.
+   랜딩(홈)에서만 shell_css() 가 뷰별로 다시 숨긴다. 토글 화살표도 살려 둬야
+   한 번 접은 사이드바를 다시 펼 수 있다(전역 display:none 이던 시절의 함정). */
 .stApp{ background:#fff; }
 /* Streamlit 테마가 요소마다 font-family 를 직접 박아서, 선택자를 넓게 잡지 않으면 안 먹는다.
    대신 아이콘 폰트와 코드 폰트는 반드시 예외로 되돌린다(안 그러면 아이콘이 네모로 깨진다). */
@@ -251,25 +257,89 @@ pre code{ font-size:.82rem !important; line-height:1.8 !important;
        font-size:.78rem; color:var(--muted2); }
 .foot b{ color:var(--muted); font-weight:700; }
 
-/* ── 내비·상태칩: 일반 버튼 규칙보다 반드시 뒤에 와야 한다 ──────────
+/* ── 앱 셸: 좌측 사이드바 ────────────────────────────────── */
+section[data-testid="stSidebar"]{
+  background:#0B1220 !important; border-right:1px solid #16233B !important;
+  width:250px !important; min-width:250px !important;
+}
+section[data-testid="stSidebar"] [data-testid="stSidebarContent"]{ padding:1.1rem .8rem 1rem; }
+section[data-testid="stSidebar"] [data-testid="stSidebarUserContent"]{ padding-bottom:0; }
+section[data-testid="stSidebar"] p, section[data-testid="stSidebar"] span,
+section[data-testid="stSidebar"] div{ color:#C7D2E4; }
+section[data-testid="stSidebar"] hr{ border-color:#1B2740 !important; margin:.7rem 0; }
+.sb-brand{ display:flex; align-items:center; gap:.45rem; font-size:1.02rem; font-weight:800;
+           color:#fff !important; letter-spacing:-.025em; padding:.1rem .4rem 0; }
+.sb-sub{ font-size:.69rem; color:#5B6B87 !important; padding:.15rem .4rem .9rem; }
+.sb-cap{ font-size:.67rem; font-weight:700; color:#4C5B75 !important; letter-spacing:.09em;
+         padding:1rem .5rem .3rem; }
+.sb-user{ font-size:.77rem; color:#AFC0D8 !important; padding:.1rem .5rem .45rem;
+          overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.sb-rule{ height:1px; background:#1B2740; margin:.85rem .25rem .7rem; }
+
+/* ── 페이지 헤더 (앱 셸 상단) ─────────────────────────────── */
+.pagehead h2{ font-size:1.32rem !important; font-weight:800; color:var(--ink) !important;
+              margin:.1rem 0 .15rem; letter-spacing:-.035em; }
+.pagehead .d{ font-size:.84rem; color:var(--muted); line-height:1.6; }
+.headrule{ height:1px; background:var(--line); margin:.95rem 0 1.45rem; }
+
+/* ── 목록(표) — 카드 남발 대신 목록을 쓴다 ────────────────── */
+.lst{ border:1px solid var(--line); border-radius:var(--r-m); overflow:hidden; background:#fff; }
+.lst .h, .lst .r{ display:grid; align-items:center; gap:.7rem; padding:.62rem .95rem; }
+.lst .h{ background:var(--soft); font-size:.74rem; font-weight:700; color:var(--muted2);
+         letter-spacing:.02em; border-bottom:1px solid var(--line); }
+.lst .r{ border-bottom:1px solid var(--line2); font-size:.85rem; color:var(--ink2); }
+.lst .r:last-child{ border-bottom:none; }
+.lst .r:hover{ background:#FCFDFF; }
+.col-h{ font-size:.74rem; font-weight:700; color:var(--muted2); letter-spacing:.02em; }
+.mono{ font-family:ui-monospace,Menlo,monospace !important; font-size:.79rem; color:var(--muted); }
+.stat{ display:grid; grid-template-columns:repeat(3,1fr); border:1px solid var(--line);
+       border-radius:var(--r-m); background:#fff; overflow:hidden; }
+.stat > div{ padding:1rem 1.2rem; border-right:1px solid var(--line2); }
+.stat > div:last-child{ border-right:none; }
+.stat .l{ font-size:.76rem; color:var(--muted); }
+.stat .v{ font-size:1.55rem; font-weight:800; color:var(--ink); letter-spacing:-.03em;
+          font-variant-numeric:tabular-nums; margin-top:.2rem; }
+.stat .s{ font-size:.73rem; color:var(--muted2); margin-top:.15rem; }
+
+/* ── 사이드바 내비·상태칩: 일반 버튼 규칙보다 반드시 뒤에 와야 한다 ──────────
    같은 !important 끼리는 '나중에 선언된 것'이 이긴다. 앞에 두면 button[kind="primary"] 의
-   파란 배경에 덮여서, 탭이 알약 버튼으로 보인다(0909 실제로 그렇게 나왔다). */
+   파란 배경에 덮여서, 활성 메뉴가 알약 버튼으로 보인다(0909 실제로 그렇게 나왔다). */
 html body .stApp [class*="st-key-nav_"] button{
-  background:transparent !important; border:none !important; box-shadow:none !important;
-  color:var(--muted) !important; font-weight:600 !important; font-size:.91rem !important;
-  height:44px !important; border-radius:0 !important; padding:0 .2rem !important;
-  border-bottom:2px solid transparent !important;
+  background:transparent !important; border:1px solid transparent !important;
+  box-shadow:none !important; color:#93A3BC !important; font-weight:600 !important;
+  font-size:.87rem !important; height:38px !important; border-radius:8px !important;
+  justify-content:flex-start !important; text-align:left !important; padding:0 .65rem !important;
 }
 html body .stApp [class*="st-key-nav_"] button:hover{
-  color:var(--ink) !important; background:transparent !important; border-bottom-color:var(--line) !important;
+  background:#16233B !important; color:#E6EDF8 !important; border-color:transparent !important;
 }
 html body .stApp [class*="st-key-nav_"] button[kind="primary"]{
-  color:var(--brand) !important; border-bottom-color:var(--brand) !important; font-weight:750 !important;
+  background:#16243F !important; color:#fff !important; font-weight:700 !important;
+  box-shadow:inset 2px 0 0 var(--brand) !important;
 }
-/* ★ 위쪽 'primary 버튼 라벨은 흰색' 규칙이 탭에도 걸려서 활성 탭 글자가 사라졌다(0909).
-   버튼 안 <p> 까지 되돌려 놔야 한다 — 배경이 투명한 탭에 흰 글자는 곧 '글자 없음'이다. */
+/* ★ 위쪽 'primary 버튼 라벨은 흰색' 규칙이 투명 배경 요소의 글자를 지운다(0909).
+   버튼 안 <p> 까지 되돌려 놔야 한다 — 배경이 투명한 메뉴에 흰 글자는 곧 '글자 없음'이다. */
 html body .stApp [class*="st-key-nav_"] button p,
 html body .stApp [class*="st-key-nav_"] button div{ color:inherit !important; }
+/* Streamlit 버튼은 안쪽 컨테이너가 가운데 정렬을 잡는다 — 버튼에만 justify 를 줘선 안 먹는다. */
+html body .stApp [class*="st-key-nav_"] button > div,
+html body .stApp [class*="st-key-nav_"] button [data-testid="stMarkdownContainer"]{
+  width:100% !important; text-align:left !important; justify-content:flex-start !important; }
+/* 사이드바 하단 상태 칩 · 계정 버튼 */
+html body .stApp [class*="st-key-sb_"] button{
+  background:transparent !important; border:1px solid #23324D !important; color:#AFC0D8 !important;
+  height:34px !important; font-size:.77rem !important; font-weight:600 !important;
+  border-radius:8px !important; box-shadow:none !important;
+}
+html body .stApp [class*="st-key-sb_"] button:hover{
+  border-color:#3A4C6E !important; background:#16233B !important; color:#fff !important;
+}
+html body .stApp [class*="st-key-sb_"] button p{ color:inherit !important; }
+html body .stApp [class*="st-key-sb_new"] button{
+  background:var(--brand) !important; border-color:var(--brand) !important; color:#fff !important;
+  height:38px !important; font-weight:700 !important; justify-content:center !important;
+}
+html body .stApp [class*="st-key-sb_new"] button:hover{ background:#2563EB !important; }
 html body .stApp [class*="st-key-statuschip"] button{
   background:var(--soft) !important; border:1px solid var(--line) !important;
   color:var(--ink2) !important; height:36px !important; font-size:.79rem !important;
@@ -409,28 +479,6 @@ def signup_dialog():
             st.rerun()
 
 
-@st.dialog("연결 설정")
-def settings_dialog():
-    """개발·운영 설정. 제품 화면 상시 노출에서 빼고 여기로 넣었다."""
-    base = st.text_input("API 주소", value=api_base())
-    h = health(base)
-    if h is None:
-        st.error("엔진에 연결할 수 없습니다.")
-        st.code('uvicorn "joker.api.app:create_app" --factory --port 8000', language="bash")
-    else:
-        if h.get("profile") == "mock":
-            # ★ mock 은 가짜 응답이라 수치가 의미 없다. 조용히 두면 발표에서 가짜를 진짜로 읽는다.
-            st.error("⚠️ mock 프로파일 — 응답이 가짜입니다. 이 화면의 수치를 인용하지 마세요.")
-        else:
-            st.success(f"엔진 정상 · profile = {esc(h.get('profile'))}")
-        st.caption(f"공격 시드 {h.get('corpus_loaded','?')}개 · "
-                   f"탐지기 {'준비됨' if h.get('detector_ready') else '미준비'} · "
-                   f"langgraph {'O' if h.get('langgraph') else 'X'}")
-    if st.button("저장", type="primary", use_container_width=True):
-        st.session_state["api_base"] = base
-        st.rerun()
-
-
 def logout(base: str):
     try:
         api_post(base, "/api/auth/logout", {})
@@ -440,61 +488,107 @@ def logout(base: str):
     st.session_state.pop("user_email", None)
 
 
-# ── 상단 바 ─────────────────────────────────────────────────
-def topbar(base: str):
-    h = health(base)
+# ── 셸 ──────────────────────────────────────────────────────
+# 랜딩(마케팅)과 앱은 셸이 다르다. 같은 껍데기를 쓰면 제품이 문서 사이트처럼 읽힌다.
+#  · 랜딩: 사이드바 없음 · 풀블리드 히어로 · 푸터 있음
+#  · 앱  : 좌측 사이드바 내비 · 페이지 제목/액션 줄 · 푸터 없음
+def shell_css(view: str):
+    """뷰마다 셸을 토글한다. 사이드바를 '그리지 않는' 것만으로는 빈 사이드바가 남는다."""
+    if view == "home":
+        st.markdown("""<style>
+        section[data-testid="stSidebar"], [data-testid="stSidebarCollapsedControl"]{
+          display:none !important; }
+        .block-container{ padding:1.4rem 2rem 0 !important; max-width:1180px; }
+        </style>""", unsafe_allow_html=True)
+    else:
+        st.markdown("""<style>
+        .block-container{ padding:1.5rem 2.4rem 3rem !important; max-width:1140px; }
+        </style>""", unsafe_allow_html=True)
+
+
+def _status_label(h: dict | None) -> str:
     # 점 색은 CSS 로 물들이지 않는다 — 버튼 라벨은 통짜 텍스트라 일부만 색을 못 준다.
     # 색을 자체로 가진 이모지를 쓰면 라벨 나머지는 기본색을 유지한다.
     if h is None:
-        label = "🔴 엔진 끊김"
-    elif h.get("profile") == "mock":
-        label = "🟠 mock (가짜 응답)"
-    else:
-        label = "🟢 엔진 정상"
+        return "🔴 엔진 끊김"
+    if h.get("profile") == "mock":
+        return "🟠 mock (가짜 응답)"
+    return "🟢 엔진 정상"
 
+
+def render_sidebar(base: str):
+    """앱 셸의 내비. 항목은 '지금 할 수 있는 일' 만 둔다 — 껍데기 메뉴는 만들지 않는다."""
+    current = st.session_state.get("view", "dashboard")
     email = st.session_state.get("user_email")
-    if email:
-        cols = st.columns([3.4, 1.5, 1.5, 1.0], vertical_alignment="center")
-    else:
-        cols = st.columns([3.4, 1.5, 1.05, 1.15], vertical_alignment="center")
+    with st.sidebar:
+        st.markdown('<div class="sb-brand">🛡️ Chat Shield</div>'
+                    '<div class="sb-sub">한국어 프롬프트 인젝션 진단</div>', unsafe_allow_html=True)
+        if st.button("＋ 새 진단", key="sb_newrun", use_container_width=True):
+            st.session_state.pop("run_id", None)
+            st.session_state.pop("estimated", None)
+            st.session_state.pop("finding_id", None)
+            go("diagnose")
+            st.rerun()
+        st.markdown('<div class="sb-cap">MENU</div>', unsafe_allow_html=True)
+        for key, label in NAV:
+            if st.button(label, key=f"nav_{key}", use_container_width=True,
+                         type="primary" if current == key else "secondary"):
+                go(key)
+                st.rerun()
+        st.markdown('<div class="sb-rule"></div>', unsafe_allow_html=True)
+        if email:
+            shown = email if len(email) <= 24 else email[:22] + "…"
+            st.markdown(f'<div class="sb-user">👤 {esc(shown)}</div>', unsafe_allow_html=True)
+            if st.button("로그아웃", key="sb_logout", use_container_width=True):
+                logout(base)
+                st.rerun()
+        else:
+            st.markdown('<div class="sb-user">👤 비회원</div>', unsafe_allow_html=True)
+            c1, c2 = st.columns(2)
+            with c1:
+                if st.button("로그인", key="sb_login", use_container_width=True):
+                    login_dialog()
+            with c2:
+                if st.button("가입", key="sb_signup", use_container_width=True):
+                    signup_dialog()
+        if st.button(_status_label(health(base)), key="sb_status", use_container_width=True,
+                     help="엔진 연결 상태 · 클릭하면 설정으로 갑니다"):
+            go("settings")
+            st.rerun()
+        st.markdown('<div class="sb-user" style="padding-top:.6rem;font-size:.7rem;color:#4C5B75">'
+                    '3팀 JOKER · 2026</div>', unsafe_allow_html=True)
 
-    cols[0].markdown(
+
+def landing_header():
+    """랜딩 상단 — 내비 탭이 아니라 브랜드 + 전환 버튼만 둔다."""
+    c1, c2, c3 = st.columns([4.2, 1.05, 1.15], vertical_alignment="center")
+    c1.markdown(
         '<div class="cs-brand"><span class="m">🛡️ Chat Shield</span>'
         '<span class="s">한국어 챗봇 프롬프트 인젝션 진단 · 처방 · 재진단</span></div>',
         unsafe_allow_html=True)
-    with cols[1]:
-        if st.button(label, key="statuschip", use_container_width=True,
-                     help="클릭하면 연결 설정을 엽니다"):
-            settings_dialog()
-    if email:
-        shown = email if len(email) <= 18 else email[:16] + "…"
-        cols[2].markdown(
-            f'<div style="text-align:right;font-size:.84rem;color:#64748B" title="{esc(email)}">'
-            f'👤 {esc(shown)}</div>', unsafe_allow_html=True)
-        with cols[3]:
-            if st.button("로그아웃", key="btn_logout", use_container_width=True):
-                logout(base)
-                st.rerun()
-    else:
-        with cols[2]:
-            if st.button("로그인", key="btn_login", use_container_width=True):
-                login_dialog()
-        with cols[3]:
-            if st.button("회원가입", key="btn_signup", type="primary", use_container_width=True):
-                signup_dialog()
-
-    # ── 탭 바 ──
-    current = st.session_state.get("view", "home")
-    nav = st.columns([0.6, 0.72, 1.1, 0.92, 5.0], vertical_alignment="center")
-    for col, (key, label_) in zip(nav, NAV):
-        with col:
-            if st.button(label_, key=f"nav_{key}",
-                         type="primary" if current == key else "secondary",
-                         use_container_width=True):
-                go(key)
-                st.rerun()
+    with c2:
+        if st.button("로그인", key="lp_login", use_container_width=True):
+            login_dialog()
+    with c3:
+        if st.button("회원가입", key="lp_signup", type="primary", use_container_width=True):
+            signup_dialog()
     st.markdown('<div class="cs-navrule"></div>', unsafe_allow_html=True)
 
+
+def page_header(title: str, desc: str = "", actions: int = 0):
+    """앱 셸 상단의 제목 줄. actions>0 이면 오른쪽 액션 버튼용 컬럼을 돌려준다."""
+    cols = st.columns([4.0] + [1.15] * actions, vertical_alignment="center") if actions \
+        else [st.container()]
+    cols[0].markdown(
+        f'<div class="pagehead"><h2>{esc(title)}</h2>'
+        + (f'<div class="d">{desc}</div>' if desc else "") + '</div>', unsafe_allow_html=True)
+    st.markdown('<div class="headrule"></div>', unsafe_allow_html=True)
+    return cols[1:]
+
+
+def mock_banner(base: str):
+    """★ mock 은 가짜 응답이라 수치가 의미 없다. 조용히 두면 발표에서 가짜를 진짜로 읽는다."""
+    h = health(base)
     if h is not None and h.get("profile") == "mock":
         st.error("⚠️ **mock 프로파일로 실행 중입니다.** 응답이 가짜라 이 화면의 등급·공격 성공률은 "
                  "실제 측정값이 아닙니다. 인용하지 마세요.")
@@ -524,6 +618,8 @@ def _hero_stats_html() -> str:
 
 
 def render_home(base: str):
+    landing_header()
+    mock_banner(base)
     st.markdown(
         '<div class="hero">'
         '<span class="hero-badge">OWASP Top 10 for LLM · LLM01 Prompt Injection</span>'
@@ -591,23 +687,35 @@ def render_home(base: str):
 
 
 def render_evidence():
+    """랜딩 전용. 앱 화면에는 두지 않는다 — 제품 화면의 수치는 '우리 성능' 이 아니라
+    '사용자 시스템의 위험' 이어야 한다.
+
+    ★ 측정 조건(condition)을 hover 에서 카드 본문으로 올렸다. 시연 영상·스크린샷·모바일에서는
+      hover 가 아예 안 보여서, 조건 없는 숫자만 남는다 — 그게 과장으로 읽힌다.
+    ★ 저장소 파일 경로(docs/...)는 접이식 안으로 내렸다. 실제 제품은 자기 repo 경로를 화면에 쓰지 않는다.
+    """
     m = load_metrics()
     if not m:
         return
     st.markdown('<div class="sec">실측 근거</div>'
-                '<div class="sec-sub">모든 수치는 측정 조건과 함께 읽어야 합니다. '
-                '카드에 마우스를 올리면 조건이 나옵니다.</div>', unsafe_allow_html=True)
+                '<div class="sec-sub">모든 수치를 측정 조건과 함께 답니다. '
+                '조건 없는 숫자는 과장이 됩니다.</div>', unsafe_allow_html=True)
     cards = "".join(
-        f'<div class="kpi" title="{esc(x["condition"])}">'
-        f'<div class="l">{esc(x["label"])}</div><div class="v">{esc(x["value"])}</div>'
-        f'<div class="d">{esc(x["detail"])}</div><div class="s">↳ {esc(x["source"])}</div></div>'
+        f'<div class="kpi"><div class="l">{esc(x["label"])}</div>'
+        f'<div class="v">{esc(x["value"])}</div>'
+        f'<div class="d">{esc(x["detail"])}</div>'
+        f'<div class="s" style="font-family:inherit !important">측정 조건 · {esc(x["condition"])}</div>'
+        f'</div>'
         for x in m.get("metrics", []))
     st.markdown(f'<div class="kpi-grid">{cards}</div>', unsafe_allow_html=True)
     with st.expander("⚠️ 알려진 한계 — 숫자와 함께 읽어야 하는 것"):
         for line in m.get("limitations", []):
             st.markdown(f"- {line}")
-    st.caption(f"갱신 {m.get('updated','-')} · 수치는 `data/evidence/headline_metrics.json` "
-               f"하나가 원본입니다.")
+    with st.expander("근거 파일 · 재현 방법"):
+        st.caption(f"수치 원본은 `data/evidence/headline_metrics.json` 하나입니다 "
+                   f"(갱신 {m.get('updated','-')}). 각 항목의 근거 문서:")
+        for x in m.get("metrics", []):
+            st.markdown(f"- **{esc(x['label'])}** — `{esc(x.get('source','-'))}`")
 
 
 # ── 실패 상태 ────────────────────────────────────────────────
@@ -651,6 +759,28 @@ def render_server_down(run_id: str | None = None):
          "상단의 <b>상태 칩</b> 을 눌러 API 주소 확인",
          "로그인 상태라면 서버 복구 후 <b>내 이력</b> 에서 같은 진단을 다시 열 수 있습니다"],
         run_id=run_id)
+
+
+def render_empty(icon: str, title: str, why: str, cta: str = "", key: str = "empty",
+                 target: str = "diagnose"):
+    """빈 상태. 실패가 아니므로 render_failure 와 색·톤을 나눈다(빨강은 오류에만 쓴다).
+
+    ★ 빈 화면에 '데이터 없음' 만 찍으면 사용자는 다음에 뭘 할지 모른다. 빈 상태는
+      제품을 처음 배우는 자리라, 무엇을 하는 도구인지와 다음 행동을 같이 준다.
+    """
+    st.markdown(
+        f'<div class="card" style="text-align:center;padding:2.6rem 1.6rem;background:var(--soft)">'
+        f'<div style="font-size:1.6rem">{icon}</div>'
+        f'<div style="font-weight:750;color:#0B1220;font-size:1.05rem;margin:.6rem 0 .4rem">'
+        f'{esc(title)}</div>'
+        f'<div style="color:#64748B;font-size:.88rem;line-height:1.75;max-width:34rem;'
+        f'margin:0 auto">{why}</div></div>', unsafe_allow_html=True)
+    if cta:
+        c = st.columns([1.4, 1, 1.4])
+        with c[1]:
+            if st.button(cta, key=key, type="primary", use_container_width=True):
+                go(target)
+                st.rerun()
 
 
 # ── 게이팅 ───────────────────────────────────────────────────
@@ -1141,6 +1271,123 @@ def render_detect(base: str):
                 unsafe_allow_html=True)
 
 
+# ── 대시보드 ────────────────────────────────────────────────
+def _fmt_pct(v) -> str:
+    return f"{v*100:.0f}%" if isinstance(v, (int, float)) else "-"
+
+
+def render_dashboard(base: str):
+    """앱 셸의 첫 화면. ★ 여기 있는 수치는 전부 GET /api/runs 가 준 값에서만 나온다.
+    Security Score 같은 합성 점수는 만들지 않는다 — 기준을 설명할 수 없는 숫자는 심사에서 무너진다."""
+    acts = page_header("대시보드", "이 계정으로 실행한 진단의 현황입니다.", actions=1)
+    with acts[0]:
+        if st.button("＋ 새 진단", key="dash_new", type="primary", use_container_width=True):
+            st.session_state.pop("run_id", None)
+            go("diagnose")
+            st.rerun()
+    try:
+        runs = api_get(base, "/api/runs").get("runs", [])
+    except Exception:  # noqa: BLE001
+        render_server_down()
+        return
+
+    if not runs:
+        render_empty(
+            "🩺", "아직 진단한 지시문이 없습니다",
+            "챗봇에 넣은 시스템 지시문을 붙여넣으면 한국어 공격 57종을 실제로 던져 "
+            "뚫리는 지점을 찾고, 방어 문구를 처방한 뒤, 같은 공격을 다시 던져 개선을 숫자로 보여줍니다.",
+            "첫 진단 시작하기", "dash_empty_cta", "diagnose")
+        if not st.session_state.get("token"):
+            st.caption("※ 비회원 진단은 이 목록에 남지 않습니다. 로그인하면 이력이 저장됩니다.")
+        return
+
+    graded = [r for r in runs if r.get("grade")]
+    deltas = [(r["asr_before"] - r["asr_after"]) for r in runs
+              if r.get("asr_before") is not None and r.get("asr_after") is not None]
+    latest = runs[0]
+    avg = f"▼ {sum(deltas)/len(deltas)*100:.0f}%p" if deltas else "-"
+    st.markdown(
+        '<div class="stat">'
+        f'<div><div class="l">진단한 지시문</div><div class="v">{len(runs)}건</div>'
+        f'<div class="s">등급이 매겨진 진단 {len(graded)}건</div></div>'
+        f'<div><div class="l">최근 진단 등급</div><div class="v">{esc(latest.get("grade") or "-")}</div>'
+        f'<div class="s">{esc(latest.get("target_model") or "-")}</div></div>'
+        f'<div><div class="l">평균 개선폭</div><div class="v">{avg}</div>'
+        f'<div class="s">처방 전 → 후 공격 성공률 차이</div></div>'
+        '</div>', unsafe_allow_html=True)
+
+    st.markdown('<div class="sec">최근 진단</div>', unsafe_allow_html=True)
+    COLS = [1.55, .55, .75, .75, 1.4, .7]
+    hc = st.columns(COLS, vertical_alignment="center")
+    for col, name in zip(hc, ("진단 식별자", "등급", "처방 전", "처방 후", "진단 대상 모델", "")):
+        col.markdown(f'<div class="col-h">{name}</div>', unsafe_allow_html=True)
+    st.markdown('<div style="height:1px;background:#E6EAF0;margin:.1rem 0 .45rem"></div>',
+                unsafe_allow_html=True)
+    for r in runs[:5]:
+        c = st.columns(COLS, vertical_alignment="center")
+        c[0].markdown(f'<span class="mono">{esc(r["run_id"])}</span>', unsafe_allow_html=True)
+        c[1].markdown(f'**{esc(r.get("grade") or "-")}**')
+        c[2].markdown(f'<span style="color:#DC2626;font-weight:700">{_fmt_pct(r.get("asr_before"))}</span>',
+                      unsafe_allow_html=True)
+        c[3].markdown(f'<span style="color:#0F9D6E;font-weight:700">{_fmt_pct(r.get("asr_after"))}</span>',
+                      unsafe_allow_html=True)
+        model = r.get("target_model") or "-"
+        mark = " ⚠️ mock(가짜)" if r.get("backend") == "mock" else ""
+        c[4].markdown(f'<span class="mono">{esc(model)}{mark}</span>', unsafe_allow_html=True)
+        with c[5]:
+            if st.button("열기", key=f"dash_open_{r['run_id']}", use_container_width=True):
+                st.session_state["run_id"] = r["run_id"]
+                st.session_state["started_at"] = time.time()
+                st.session_state.pop("finding_id", None)
+                go("diagnose")
+                st.rerun()
+        st.markdown('<div style="height:1px;background:#F1F5F9;margin:.15rem 0 .35rem"></div>',
+                    unsafe_allow_html=True)
+
+
+# ── 설정 ────────────────────────────────────────────────────
+def render_settings(base: str):
+    """개발·운영 설정. 제품 화면 상시 노출에서 빼고 여기로 모았다."""
+    page_header("설정", "연결과 계정. 이 화면의 값은 이 브라우저 세션에만 저장됩니다.")
+    st.markdown("**엔진 연결**")
+    new_base = st.text_input("API 주소", value=api_base())
+    h = health(new_base)
+    if h is None:
+        render_failure(
+            "📡", "엔진에 연결할 수 없습니다",
+            "이 주소로 API 서버에 닿지 못했습니다. 주소가 맞는지, 서버가 떠 있는지 확인하세요.",
+            ["API 서버 실행: "
+             "<code>uvicorn \"joker.api.app:create_app\" --factory --port 8000</code>",
+             "주소를 고친 뒤 아래 <b>저장</b>"])
+    else:
+        if h.get("profile") == "mock":
+            st.error("⚠️ mock 프로파일 — 응답이 가짜입니다. 이 화면의 수치를 인용하지 마세요.")
+        else:
+            st.success(f"엔진 정상 · profile = {esc(h.get('profile'))}")
+        st.caption(f"공격 시드 {h.get('corpus_loaded','?')}개 · "
+                   f"탐지기 {'준비됨' if h.get('detector_ready') else '미준비'} · "
+                   f"langgraph {'O' if h.get('langgraph') else 'X'}")
+    c1, _ = st.columns([1, 3])
+    if c1.button("저장", type="primary", use_container_width=True, key="set_save"):
+        st.session_state["api_base"] = new_base
+        st.rerun()
+
+    st.markdown('<div class="sec">계정</div>', unsafe_allow_html=True)
+    email = st.session_state.get("user_email")
+    if email:
+        st.markdown(f"로그인 중 · `{esc(email)}`")
+        if st.columns([1, 3])[0].button("로그아웃", use_container_width=True, key="set_logout"):
+            logout(base)
+            st.rerun()
+    else:
+        st.caption("비회원입니다. 로그인하면 진단 이력이 저장되고 처방문 전문을 볼 수 있습니다.")
+        c1, c2, _ = st.columns([1, 1, 2.4])
+        if c1.button("로그인", use_container_width=True, key="set_login"):
+            login_dialog()
+        if c2.button("회원가입", type="primary", use_container_width=True, key="set_signup"):
+            signup_dialog()
+
+
 # ── 이력 ────────────────────────────────────────────────────
 def render_history(base: str):
     st.markdown('<div class="sec" style="margin-top:.4rem">내 진단 이력</div>', unsafe_allow_html=True)
@@ -1212,22 +1459,30 @@ def render_history(base: str):
 # ── 메인 ────────────────────────────────────────────────────
 def main():
     base = api_base()
-    topbar(base)
+    view = st.session_state.get("view", "home")
+    shell_css(view)
 
     # 게이트 카드의 '로그인' → 로그인 모달에서 '회원가입' 으로 넘어가는 경로
     if st.session_state.pop("open_signup", False):
         signup_dialog()
 
-    view = st.session_state.get("view", "home")
+    if view == "home":
+        render_home(base)
+        footer()
+        return
+
+    render_sidebar(base)
+    mock_banner(base)
     if view == "diagnose":
         render_diagnose(base)
     elif view == "detect":
         render_detect(base)
     elif view == "history":
         render_history(base)
+    elif view == "settings":
+        render_settings(base)
     else:
-        render_home(base)
-    footer()
+        render_dashboard(base)
 
 
 # streamlit 은 스크립트를 통째로 재실행한다. 표준 가드로 두되, streamlit 이 __main__ 으로 실행한다.
