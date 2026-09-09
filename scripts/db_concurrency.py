@@ -19,6 +19,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sqlite3
 import statistics
 import sys
@@ -105,11 +106,22 @@ def measure(mode: str, n_runs: int) -> dict:
     }
 
 
+def _env() -> str:
+    """★ 측정 환경을 반드시 같이 찍는다.
+    이 프로젝트는 진단 행마다 env_profile 을 저장한다 — 환경 없는 숫자는 근거가 아니라는 원칙이고,
+    벤치마크도 예외가 아니다. 디스크가 빠른 맥과 느린 VM 은 같은 코드에서 수십 배 차이가 난다."""
+    import platform
+    return (f"{platform.system()} {platform.machine()} · Python {platform.python_version()} · "
+            f"SQLite {sqlite3.sqlite_version} · {os.environ.get('JOKER_ENV_PROFILE', 'unknown')}")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--runs", type=int, default=30, help="연속으로 저장할 진단 횟수")
+    # 기본값 400: 맥처럼 디스크가 빠르면 30회는 0.04초 만에 끝나 읽기 표본이 5개도 안 잡힌다.
+    ap.add_argument("--runs", type=int, default=400, help="연속으로 저장할 진단 횟수")
     args = ap.parse_args()
 
+    print(f"환경: {_env()}")
     print(f"쓰기: 진단 {args.runs}회 연속 저장 (1회 = tb_diagnosis 1행 + tb_attempt {ATTEMPTS_PER_RUN}행)")
     print(f"읽기: list_runs 질의를 {READ_INTERVAL*1000:.0f}ms 간격으로 반복\n")
     print(f"{'저널 모드':<12}{'쓰기 시간':>10}{'읽기 수':>9}{'평균':>9}{'p95':>9}{'최대':>10}{'잠금 오류':>10}")
@@ -121,6 +133,11 @@ def main() -> None:
         print(f"{m['mode']:<12}{m['elapsed_s']:>9.2f}s{m['reads']:>9}"
               f"{m['mean_ms']:>8.2f}ms{m['p95_ms']:>8.2f}ms{m['max_ms']:>9.2f}ms{m['busy']:>10}")
     print("-" * 70)
+    thin = [r for r in rows if r["reads"] < 30]
+    if thin:
+        detail = ", ".join(f"{r['mode']} {r['reads']}회" for r in thin)
+        print(f"\n⚠️  읽기 표본이 너무 적다({detail}). --runs 를 늘려 다시 재라 — "
+              f"표본 5개로 p95 를 말하면 안 된다.")
     d, w = rows[0], rows[1]
     if d["max_ms"] > 0:
         print(f"\n최대 읽기 지연 {d['max_ms']:.2f}ms → {w['max_ms']:.2f}ms "
