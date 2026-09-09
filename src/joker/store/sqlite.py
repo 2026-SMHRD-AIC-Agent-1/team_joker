@@ -31,14 +31,40 @@ def _now() -> str:
     return datetime.datetime.now().isoformat(timespec="seconds")
 
 
+# 연결 프라그마는 이 함수 하나로 모은다(auth_store 도 같은 걸 쓴다).
+# 저장소마다 다르게 열면 '어떤 연결은 WAL, 어떤 연결은 아님' 같은 상태가 생긴다.
+def connect(db_path: str) -> sqlite3.Connection:
+    """진단 DB 연결. 프라그마 3개는 전부 이유가 있다.
+
+    ★ journal_mode = WAL (2026-09-09, DB 멘토링 지적 대응)
+      기본값(delete)에서는 **쓰기 트랜잭션이 열려 있는 동안 읽기가 대기한다.**
+      우리 구조가 정확히 그 모양이다 — 진단 워커가 save_run 으로 1행 + 공격 시도 114행을
+      한 트랜잭션에 쓰는 동안, 화면은 3초마다 GET /api/runs 로 같은 DB 를 읽는다.
+      WAL 은 읽기와 쓰기가 서로를 막지 않는다(reader 는 스냅샷을 본다).
+      실측은 scripts/db_concurrency.py · 설계 근거는 docs/adr_001_storage.md.
+
+    ★ synchronous = NORMAL
+      WAL 에서 권장되는 짝. FULL 대비 fsync 를 줄이면서도 **프로세스가 죽어도 DB 는 안 깨진다**
+      (OS 크래시 시 마지막 커밋 몇 건을 잃을 수 있는 수준). 진단 결과는 재현 가능한 데이터라
+      이 트레이드오프가 맞다.
+
+    ★ busy_timeout = 5000
+      파이썬 기본값과 같지만 **명시한다.** 기본값에 기대면 다른 드라이버로 갈아탈 때 조용히 0 이 된다.
+    """
+    con = sqlite3.connect(db_path, timeout=5.0)
+    con.execute("PRAGMA journal_mode = WAL")     # 읽기가 쓰기에 막히지 않게
+    con.execute("PRAGMA synchronous = NORMAL")   # WAL 의 표준 짝
+    con.execute("PRAGMA busy_timeout = 5000")    # 잠금 대기 상한(ms)
+    con.execute("PRAGMA foreign_keys = ON")      # 부모 삭제 시 자식(attempt)도 정리되게
+    return con
+
+
 class Repository:
     def __init__(self, db_path: str) -> None:
         self.db_path = db_path
 
     def _connect(self) -> sqlite3.Connection:
-        con = sqlite3.connect(self.db_path)
-        con.execute("PRAGMA foreign_keys = ON")  # 부모 삭제 시 자식(attempt)도 정리되게
-        return con
+        return connect(self.db_path)
 
     # ── 스키마 생성 ────────────────────────────────────────
     def init_schema(self) -> None:

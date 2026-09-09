@@ -25,8 +25,11 @@ class AuthRepository:
         self.db_path = db_path
 
     def _connect(self) -> sqlite3.Connection:
-        con = sqlite3.connect(self.db_path)
-        con.execute("PRAGMA foreign_keys = ON")  # 회원 삭제 시 세션도 같이 정리되게
+        # ★ 연결 프라그마를 여기서 따로 쓰지 않는다 — store.sqlite.connect 하나로 모았다.
+        #   따로 열면 '어떤 연결은 WAL, 어떤 연결은 아님' 이 되어 동시성 보장이 반쪽이 된다.
+        from joker.store.sqlite import connect
+
+        con = connect(self.db_path)
         con.row_factory = sqlite3.Row
         return con
 
