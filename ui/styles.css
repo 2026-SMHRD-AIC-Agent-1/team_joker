@@ -2,21 +2,21 @@
 
 
 :root{
-  /* 표면 — 네이비 4단. 그림자가 아니라 '밝기'로 층을 만든다. */
+  /* 표면 — 밝기 4단(라이트). 그림자가 아니라 '밝기'로 층을 만든다. */
   --bg:#F5F7FB; --surface:#FFFFFF; --surface-2:#F0F3F8; --surface-3:#E8EDF5;
   --line:#D9E1ED; --line-2:#E6EBF2; --soft:#F8FAFD;
   /* 글자 */
   --ink:#17243B; --ink2:#42536C; --muted:#5C6C83; --muted2:#66758C;
   /* 포인트 */
   --brand:#285DDD; --brand-h:#1949BE; --brand-2:#285DDD;
-  --brand-soft:rgba(57,120,246,.12); --brand-line:rgba(57,120,246,.34);
+  --brand-soft:rgba(40,93,221,.08); --brand-line:rgba(40,93,221,.28);
   --ok:#187B59; --warn:#956000; --danger:#B5364E;
   /* 반지름 · 간격 */
   --r-s:8px; --r-m:10px; --r-l:12px;
   --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-6:24px; --sp-8:32px; --sp-12:48px;
-  --sh-1:0 1px 2px rgba(0,0,0,.35);
-  --sh-2:0 16px 40px -28px rgba(0,0,0,.85);
-  --focus:0 0 0 3px rgba(57,120,246,.32);
+  --sh-1:0 1px 2px rgba(23,36,59,.06);
+  --sh-2:0 18px 40px -26px rgba(23,36,59,.30);
+  --focus:0 0 0 3px rgba(40,93,221,.28);
 }
 
 /* ── Streamlit 기본 크롬 제거 ─────────────────────────────
@@ -61,7 +61,7 @@ html body .stApp .id, html body .stApp .mono{
 .block-container{ padding:24px 32px 48px !important; max-width:1180px; }
 /* 제목 크기·굵기를 한 벌로 통일한다. 화면마다 h2 크기가 다르면 같은 제품으로 안 보인다. */
 h1,h2,h3,h4{ letter-spacing:-.02em; color:var(--ink); }
-/* ★ 한국어 조판: 기본값이면 '처방하/고' 처럼 단어 중간에서 줄이 끊긴다. */
+/* ★ 한국어 조판: 기본값이면 '보강하/고' 처럼 단어 중간에서 줄이 끊긴다. */
 .stApp, .stApp p, .stApp h1, .stApp h2, .stApp h3, .stApp li, .stApp span, .stApp div{
   word-break:keep-all; overflow-wrap:break-word;
 }
@@ -72,11 +72,11 @@ h1,h2,h3,h4{ letter-spacing:-.02em; color:var(--ink); }
   color:var(--muted2) !important; font-size:.8rem !important; line-height:1.7 !important;
 }
 hr{ border-color:var(--line); }
-::selection{ background:rgba(57,120,246,.32); color:#fff; }
+::selection{ background:rgba(40,93,221,.18); color:var(--ink); }
 *::-webkit-scrollbar{ width:10px; height:10px; }
-*::-webkit-scrollbar-thumb{ background:#243247; border-radius:99px;
+*::-webkit-scrollbar-thumb{ background:#C3CDDC; border-radius:99px;
                             border:3px solid transparent; background-clip:padding-box; }
-*::-webkit-scrollbar-thumb:hover{ background:#31435F; background-clip:padding-box; }
+*::-webkit-scrollbar-thumb:hover{ background:#A6B4C8; background-clip:padding-box; }
 /* ★ 키보드 포커스는 항상 보여야 한다. Streamlit 기본값은 요소마다 제각각이라 한 벌로 덮는다. */
 .stApp :focus-visible{ outline:2px solid var(--brand-h) !important; outline-offset:2px !important;
                        border-radius:6px; }
@@ -221,9 +221,11 @@ pre code{ font-size:.82rem !important; line-height:1.85 !important; color:var(--
 .intro-g span.d{ color:var(--muted); font-size:.83rem; line-height:1.7; }
 
 /* ── 사이드바 ────────────────────────────────────────────
-   본문보다 한 단 어둡게 둔다. 밝기 차 하나로 '내비 / 작업 영역' 이 갈린다. */
+   본문 배경(--bg)보다 한 단 밝은 흰 판으로 둔다. 밝기 차 하나로 '내비 / 작업 영역' 이 갈린다.
+   ★ 라이트 전환 전에는 여기가 #060A12 였다 — 글자색은 --ink2(남색)로 남아 있어서
+     검정 위 남색, 즉 '안 보이는 메뉴' 였다. 배경과 글자를 같은 테마에서 뽑는다. */
 section[data-testid="stSidebar"]{
-  background:#060A12 !important; border-right:1px solid var(--line) !important;
+  background:var(--surface) !important; border-right:1px solid var(--line) !important;
   width:252px !important;
 }
 section[data-testid="stSidebar"] [data-testid="stSidebarContent"]{ padding:16px 12px 12px; }
@@ -232,16 +234,16 @@ section[data-testid="stSidebar"] p, section[data-testid="stSidebar"] span,
 section[data-testid="stSidebar"] div{ color:var(--ink2); }
 section[data-testid="stSidebar"] hr{ border-color:var(--line) !important; margin:8px 0; }
 .sb-brand{ display:flex; align-items:center; gap:8px; font-size:1rem; font-weight:800;
-           color:#fff !important; letter-spacing:-.02em; padding:2px 6px 0; }
+           color:var(--ink) !important; letter-spacing:-.02em; padding:2px 6px 0; }
 .sb-brand .dot{ width:8px; height:8px; border-radius:50%; background:var(--brand);
                 display:inline-block; flex:none; }
 .sb-sub{ font-size:.7rem; color:var(--muted2) !important; padding:4px 6px 14px; }
-.sb-cap{ font-size:.66rem; font-weight:700; color:#55657F !important; letter-spacing:.14em;
+.sb-cap{ font-size:.66rem; font-weight:700; color:var(--muted2) !important; letter-spacing:.14em;
          padding:16px 8px 6px; text-transform:uppercase; }
 .sb-user{ font-size:.78rem; color:var(--muted) !important; padding:2px 8px 8px;
           overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .sb-rule{ height:1px; background:var(--line); margin:12px 4px 10px; }
-.sb-foot{ font-size:.7rem; color:#4E5D75 !important; padding:12px 8px 0; line-height:1.6; }
+.sb-foot{ font-size:.7rem; color:var(--muted) !important; padding:12px 8px 0; line-height:1.6; }
 /* ★ 항목 간격: Streamlit 기본 세로 gap(1rem)이면 메뉴 4개가 화면 절반을 먹는다. */
 html body .stApp section[data-testid="stSidebar"]
   [data-testid="stSidebarUserContent"] [data-testid="stVerticalBlock"]{ gap:4px !important; }
@@ -310,7 +312,7 @@ html body .stApp section[data-testid="stSidebar"]
 .tb-track{ height:8px; border-radius:99px; background:var(--surface-3); overflow:hidden; }
 .tb-bar{ height:100%; border-radius:99px; }
 .tb-before{ background:var(--danger); opacity:.75; }
-/* 처방 후 막대 — 좋아졌으면 초록, 나빠졌으면 위험색, 같으면 회색(색이 결과를 대신 말하지 않게) */
+/* 보강 후 막대 — 좋아졌으면 초록, 나빠졌으면 위험색, 같으면 회색(색이 결과를 대신 말하지 않게) */
 .tb-good{ background:var(--ok); } .tb-bad{ background:var(--danger); }
 .tb-flat{ background:var(--muted); }
 .tb-val{ font-size:.79rem; font-weight:700; text-align:right; white-space:nowrap;
@@ -332,7 +334,7 @@ html body .stApp section[data-testid="stSidebar"]
 .advice{ border-radius:var(--r-m); padding:14px 16px; font-size:.86rem; line-height:1.75; }
 .advice .t{ display:block; margin-bottom:6px; font-size:.88rem; font-weight:750; }
 
-/* ── 변경 비교 (원본 ↔ 처방문) ───────────────────────────
+/* ── 변경 비교 (원본 ↔ 보강안) ───────────────────────────
    ★ 색만으로 추가/삭제를 말하지 않는다. 왼쪽 기호(＋ − =)와 라벨을 같이 준다. */
 .diff{ border:1px solid var(--line); border-radius:var(--r-m); background:var(--soft);
        overflow:hidden; }
@@ -364,7 +366,7 @@ html body .stApp section[data-testid="stSidebar"]
 .stg .cur .mk{ background:var(--brand); color:#fff; }
 .stg .todo .mk{ background:var(--surface-3); color:var(--muted2); }
 .stg .done{ color:var(--muted); } .stg .todo{ color:var(--muted2); }
-.stg .cur{ color:var(--ink); font-weight:700; background:rgba(57,120,246,.07); }
+.stg .cur{ color:var(--ink); font-weight:700; background:var(--brand-soft); }
 .stg .d{ margin-left:auto; font-size:.79rem; color:var(--muted); font-weight:500;
          font-variant-numeric:tabular-nums; }
 .elapsed{ font-size:2rem; font-weight:800; color:var(--ink); letter-spacing:-.03em;
@@ -373,7 +375,7 @@ html body .stApp section[data-testid="stSidebar"]
 /* ── 프리미티브 ─────────────────────────────────────────── */
 .sk-wrap{ display:flex; flex-direction:column; gap:8px; }
 .sk{ border-radius:var(--r-s);
-     background:linear-gradient(90deg,#141E30 25%,#E8EDF5 37%,#141E30 63%);
+     background:linear-gradient(90deg,#E4EAF3 25%,#F6F8FC 37%,#E4EAF3 63%);
      background-size:400% 100%; animation:sk 1.2s ease-in-out infinite; }
 @keyframes sk{ 0%{background-position:100% 50%} 100%{background-position:0 50%} }
 
@@ -387,7 +389,7 @@ html body .stApp section[data-testid="stSidebar"]
 .gate-blur .gb-l{ font-size:.86rem; line-height:2.1; color:#93A9CC;
                   white-space:nowrap; overflow:hidden; }
 .gate-fog{ position:absolute; inset:0; background:linear-gradient(180deg,
-           rgba(8,13,23,.05) 0%, rgba(8,13,23,.42) 58%, rgba(16,24,39,.92) 100%); }
+           rgba(248,250,253,0) 0%, rgba(248,250,253,.62) 55%, rgba(248,250,253,.97) 100%); }
 .gate{ border:1px solid var(--brand-line); border-radius:var(--r-m);
        background:var(--brand-soft); padding:16px 20px; }
 .gate.attached{ border-top-left-radius:0; border-top-right-radius:0; }
@@ -419,7 +421,7 @@ html body .stApp [class*="st-key-nav_"] button:hover{
   border-color:transparent !important;
 }
 html body .stApp [class*="st-key-nav_"] button[kind="primary"]{
-  background:rgba(57,120,246,.16) !important; color:#fff !important; font-weight:700 !important;
+  background:var(--brand-soft) !important; color:var(--brand) !important; font-weight:700 !important;
   box-shadow:inset 2px 0 0 var(--brand) !important;
 }
 /* ★ 위쪽 'primary 버튼 라벨은 흰색' 규칙이 투명 배경 요소의 글자를 지운다.
@@ -475,7 +477,7 @@ html body .stApp [class*="st-key-tblact_"] button{
   color:var(--brand-2) !important; height:24px !important; font-size:.8rem !important;
   font-weight:600 !important; padding:0 !important; justify-content:flex-end !important;
 }
-html body .stApp [class*="st-key-tblact_"] button:hover{ color:#fff !important;
+html body .stApp [class*="st-key-tblact_"] button:hover{ color:var(--brand-h) !important;
   text-decoration:underline !important; background:transparent !important; }
 html body .stApp [class*="st-key-tblact_"] button p{ color:inherit !important; }
 /* 표 안의 셀 텍스트는 줄간격을 좁혀 행 높이를 결정하지 않게 한다. ★ 한글이 길면 줄바꿈으로
@@ -620,7 +622,7 @@ html body .stApp [class*="st-key-ex_"] button [data-testid="stMarkdownContainer"
    ★ 여기서 그리는 것은 **코드의 실제 관계**다. 처음엔 요청 흐름(입력→탐지기→모델)을 그렸다가
      되돌렸다 — 그 그림은 '우리 서비스가 탐지기를 앞에 세워 돌린다' 로 읽히는데 사실이 아니다.
      진단 파이프라인은 KoDetector 를 부르지 않고 대상 모델에 바로 공격을 던진다.
-     두 기능은 병렬이고, 이어 주는 것은 호출이 아니라 **처방**이다.
+     두 기능은 병렬이고, 이어 주는 것은 호출이 아니라 **권고**다.
    ★ 번호(①②)를 쓰지 않는다. 프로젝트에 '1층/2층' 과 '처방①/②' 라는 서로 반대인 번호가
      이미 둘 있어서, 세 번째를 만들면 아무도 못 따라온다. 이름으로만 부른다. */
 .relation {display:flex;align-items:stretch;gap:0;border:1px solid var(--line);

@@ -181,7 +181,7 @@ def representative_findings(attempts: list[dict]) -> list[dict]:
 # 비회원에게 보여줄 처방문 미리보기 줄 수. 0 이면 "뭘 얻는지" 감이 안 오고,
 # 너무 많으면 굳이 가입할 이유가 없어진다. 2줄 = 첫 문장 + 방어 패턴 하나의 시작.
 GATE_PREVIEW_LINES = 2
-GATE_UNLOCK_MESSAGE = "무료 회원가입 시 전체 처방문과 시도별 상세를 볼 수 있습니다."
+GATE_UNLOCK_MESSAGE = "무료 회원가입 시 전체 보강안과 시도별 상세를 볼 수 있습니다."
 
 
 def _apply_gate(out: dict) -> dict:
@@ -329,8 +329,8 @@ def serialize_run(run: dict, viewer: dict | None = None) -> dict:
 PROGRESS_STAGES = [
     {"key": "recon", "label": "지시문 분석 · 보호 자산 식별"},
     {"key": "attack_r1", "label": "1차 공격 실행"},
-    {"key": "patch", "label": "방어 문구 처방"},
-    {"key": "attack_r2", "label": "처방 후 재공격"},
+    {"key": "patch", "label": "방어 문구 보강"},
+    {"key": "attack_r2", "label": "보강 후 재공격"},
     {"key": "report", "label": "등급·리포트 생성"},
 ]
 _STAGE_INDEX = {s["key"]: i for i, s in enumerate(PROGRESS_STAGES)}
