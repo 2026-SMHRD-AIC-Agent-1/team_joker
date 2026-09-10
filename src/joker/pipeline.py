@@ -24,6 +24,18 @@ from joker.nodes.report import build_report
 from joker.state import RunState
 
 
+def emit(deps: Deps | None, stage: str, **kw) -> None:
+    """진행 상황 통지. 콜백이 없으면 아무 일도 하지 않는다(기존 경로 무변경).
+    ★ 통지 실패가 진단을 죽이면 안 된다 — 예외는 삼킨다."""
+    cb = getattr(deps, "on_progress", None) if deps else None
+    if cb is None:
+        return
+    try:
+        cb(stage, **kw)
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def prompt_hash(text: str) -> str:
     return "sha256:" + hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
 
@@ -40,6 +52,7 @@ def new_state(target_prompt: str, run_id: str = "run_local") -> RunState:
 
 # ── 단계 함수 (pipeline / graph 공용) ─────────────────────
 def step_recon(state: RunState, deps: Deps) -> RunState:
+    emit(deps, "recon")
     return recon(state, deps)  # recon 은 이미 새 dict 를 반환한다
 
 
@@ -63,6 +76,7 @@ def step_inconclusive(state: RunState, deps: Deps | None = None) -> RunState:
 
 def step_attack_r1(state: RunState, deps: Deps) -> RunState:
     """R1: 스크리닝 18건 → 취약 기법 판정 → 그 기법에만 집중 투입."""
+    emit(deps, "attack_r1")
     context = build_context(state)
     assets = state["assets"]
     attacks = list(deps.attacks)
@@ -102,6 +116,7 @@ def step_attack_r1(state: RunState, deps: Deps) -> RunState:
 
 
 def step_patch(state: RunState, deps: Deps) -> RunState:
+    emit(deps, "patch")
     result = assemble_patch(
         state["target_prompt"], list(state.get("vulnerable_techniques", [])), list(deps.patterns),
         list(state.get("assets", [])),
@@ -114,6 +129,7 @@ def step_patch(state: RunState, deps: Deps) -> RunState:
 
 def step_attack_r2(state: RunState, deps: Deps) -> RunState:
     """R2: R1 에서 실제로 던진 attack_id 를 그대로 재생(함정①), 처방된 지시문에."""
+    emit(deps, "attack_r2")
     context = build_context(state)
     assets = state["assets"]
     by_id = {a.id: a for a in deps.attacks}
@@ -128,6 +144,7 @@ def step_attack_r2(state: RunState, deps: Deps) -> RunState:
 
 
 def step_report(state: RunState, deps: Deps | None = None) -> RunState:
+    emit(deps, "report")
     attempts = state["attempts"]
     r1 = [a for a in attempts if a.round_no == 1]
     r2 = [a for a in attempts if a.round_no == 2]

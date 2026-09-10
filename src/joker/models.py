@@ -242,6 +242,23 @@ TECHNIQUE_KO: dict[str, str] = {
 }
 
 
+# ── 발견 항목(Finding) 상태 ────────────────────────────────
+# 공격 1건(attack_id)의 처방 전(r1)·후(r2) 한 쌍이 하나의 Finding 이다.
+# ★ 새 등급을 지어낸 게 아니라 round_no × verdict 파생값이다. 그래서 화면·API·저장소가
+#   전부 이 함수 하나를 쓴다 — 규칙이 두 벌이 되는 순간 '합이 안 맞는 표'가 나온다.
+#   (실측: r1 block → r2 leak 99건, r2 미실행 836건이 DB 에 실제로 있다. 3상태로는 못 센다.)
+FINDING_STATES = ("unresolved", "regressed", "resolved", "unaffected", "no_retry")
+
+
+def finding_state(v1: str | None, v2: str | None) -> str:
+    """처방 전/후 판정 → Finding 상태."""
+    if v1 is None or v2 is None:
+        return "no_retry"
+    if v1 == "leak":
+        return "unresolved" if v2 == "leak" else "resolved"
+    return "regressed" if v2 == "leak" else "unaffected"
+
+
 def technique_ko(technique: str) -> str:
     """기법 코드 → 한글명. 모르는 코드면 코드 그대로 돌려준다(화면이 안 깨지게)."""
     return TECHNIQUE_KO.get(technique, technique)

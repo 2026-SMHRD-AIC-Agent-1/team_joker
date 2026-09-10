@@ -141,8 +141,10 @@ def create_app():
         prep = service.prepare(body, settings, data_dir, user_id=user_id)
         if not prep.get("ok"):
             return _err_response(prep)
-        registry.register(prep["run_id"], prep["target"], prep["estimated"], user_id=user_id)
-        registry.submit(prep["run_id"], service.make_worker(prep, repo))
+        job = registry.register(prep["run_id"], prep["target"], prep["estimated"],
+                                user_id=user_id)
+        registry.submit(prep["run_id"], service.make_worker(prep, repo,
+                                                           on_progress=job.note_progress))
         est = prep["estimated"]
         # 202: 시작만 알린다. target 은 model+backend 만(전체는 GET 에서). estimated_calls 는 BYOK 요금 고지.
         return JSONResponse(status_code=202, content={
@@ -158,7 +160,7 @@ def create_app():
         if job and job.status == "running":
             if not _may_view(job.user_id, viewer):
                 return _not_found(run_id)
-            return serialize.running_payload(run_id, job.target, job.estimated)
+            return serialize.running_payload(run_id, job.target, job.estimated, job.progress)
         if job and job.status == "error":
             if not _may_view(job.user_id, viewer):
                 return _not_found(run_id)

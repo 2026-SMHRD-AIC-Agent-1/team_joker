@@ -137,12 +137,53 @@ def _ui_src() -> str:
 
 
 @pytest.mark.boundary
-def test_ui_does_not_blur_on_the_client():
-    """★ 화면이 CSS 로 가리면 안 된다. 개발자도구로 벗겨지고, 그 순간 제품 신뢰도가 끝난다.
-    게이팅의 실체는 '서버가 안 보낸다' 하나여야 한다."""
+def test_ui_blur_covers_only_a_fabricated_placeholder():
+    """★ 블러 자체는 허용한다. 단 흐려지는 대상이 '화면이 지어낸 가짜 문장' 이어야 한다.
+
+    진짜 데이터를 CSS 로 가리면 개발자도구로 3초면 벗겨지고, 그 순간 보안 제품의 신뢰도가
+    끝난다. 반대로 가짜를 흐려두면 시각 효과는 그대로 가져가면서, 벗겨봐야 가짜가 나온다.
+    게이팅의 실체는 여전히 '서버가 안 보낸다' 하나이고, 그쪽은
+    test_hidden_lines_are_physically_absent 가 계속 지킨다.
+
+    검사 항목:
+      ① 블러는 딱 한 곳(.gate-blur)에만 있다 — 다른 화면으로 번지면 진짜를 가리게 된다.
+      ② 흐린 줄을 채우는 값은 모듈 상수 GATE_DECOY 뿐이다.
+      ③ 서버 응답 필드 이름이 그 줄에 끼어들지 않는다.
+      ④ 텍스트 자체를 감추는 다른 수법(text-security 등)은 계속 금지다.
+    """
     src = _ui_src()
-    for banned in ("blur(", "filter: blur", "-webkit-filter", "text-security"):
+    for banned in ("-webkit-filter", "text-security"):
         assert banned not in src, f"클라이언트 가림 처리({banned})는 게이팅이 아니다"
+
+    assert src.count("blur(") == 1, "블러는 게이트 플레이스홀더 한 곳에만 써야 한다"
+    assert ".gate-blur{ filter:blur(" in src, "블러는 .gate-blur 규칙에만 붙는다"
+
+    assert "GATE_DECOY = {" in src, "흐릴 가짜 문장은 모듈 상수로 고정해 둔다"
+    fill = [ln for ln in src.splitlines() if 'class="gb-l"' in ln]
+    assert len(fill) == 1, "흐린 줄을 만드는 자리는 한 군데여야 한다"
+    assert "GATE_DECOY" in "".join(src.splitlines()[src.splitlines().index(fill[0]):][:3]), \
+        "흐린 줄은 GATE_DECOY 로만 채운다"
+    for server_field in ("patched_prompt", "attempts", "response_raw",
+                         "rendered_text", "unlock"):
+        assert server_field not in fill[0], \
+            f"서버 응답값({server_field})이 블러 영역에 들어가면 '진짜를 가리는' 게 된다"
+
+
+@pytest.mark.boundary
+def test_ui_gate_tells_the_user_the_blur_is_fake():
+    """흐림을 쓰는 순간 '진짜를 가린 것' 으로 오해받는다. 화면이 먼저 아니라고 말해야 한다."""
+    src = _ui_src()
+    assert "화면이 만든 예시 문장" in src
+    assert "담기지 않습니다" in src
+
+
+@pytest.mark.boundary
+def test_render_gate_never_receives_hidden_content():
+    """게이트 함수가 가려진 '내용' 을 인자로 받기 시작하면 언젠가 그것을 그리게 된다.
+    시그니처를 고정해 그 경로 자체를 막는다(양·제목·해제문구·더미 종류만 받는다)."""
+    src = _ui_src()
+    assert ("def render_gate(title: str, total: str, hidden: str, unlock: str = \"\", "
+            "key: str = \"gate\",") in src
 
 
 @pytest.mark.boundary

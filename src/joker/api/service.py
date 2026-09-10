@@ -101,8 +101,11 @@ def redact_state_responses(state) -> None:
         at.response_raw = redact_values(at.response_raw, secret_values)
 
 
-def make_worker(prep: dict, repo):
-    """진단 실행 + 저장을 하는 무인자 함수. 여기서만 SQLite 에 쓴다(잡 워커 스레드)."""
+def make_worker(prep: dict, repo, on_progress=None):
+    """진단 실행 + 저장을 하는 무인자 함수. 여기서만 SQLite 에 쓴다(잡 워커 스레드).
+
+    on_progress: 엔진이 단계·실행 수를 알려주는 콜백(선택). 폴링 응답의 진행 표시에 쓴다.
+    """
     settings = prep["settings"]
     providers = prep["providers"]
 
@@ -111,6 +114,7 @@ def make_worker(prep: dict, repo):
             settings=settings,
             victim=providers["victim"], recon=providers["recon"], judge=providers["judge"],
             attacks=tuple(prep["attacks"]), patterns=tuple(prep["patterns"]),
+            on_progress=on_progress,
         )
         state = run_pipeline(prep["prompt"], deps, run_id=prep["run_id"])
         redact_state_responses(state)  # ★ 저장 전 자산값 마스킹(사용자 결정 0831)

@@ -56,6 +56,25 @@ class Job:
         self.status = "running"       # running | done | error
         self.error: dict | None = None  # {code, message} — error 일 때만
         self.created_at = datetime.datetime.now().isoformat(timespec="seconds")
+        # 진행 상황. ★ 센 값만 담는다(단계·이번 배치의 실행 수·누적 호출 수). 퍼센트는 만들지 않는다.
+        # ★ 워커 풀이 max_workers=1 이라 두 번째 진단은 '대기 중' 이다. 이걸 안 알려주면
+        #   화면은 '지시문 분석'에 멈춘 것처럼 보인다(실제로 개발 중에 몇 번 속았다).
+        self.started = False
+        self.progress: dict = {"stage": "recon", "calls_done": 0, "queued": True}
+
+    def note_progress(self, stage: str, stage_done: int | None = None,
+                      stage_total: int | None = None, call: bool = False) -> None:
+        """엔진 콜백. 워커 스레드가 쓰고 요청 스레드가 읽으므로 **통째로 새 dict 로 교체**한다
+        (부분 갱신 중간 상태가 응답에 실리는 것을 막는다)."""
+        cur = self.progress
+        self.started = True
+        nxt = {
+            "stage": stage, "queued": False,
+            "calls_done": cur.get("calls_done", 0) + (1 if call else 0),
+            "stage_done": stage_done,
+            "stage_total": stage_total,
+        }
+        self.progress = nxt
 
 
 class JobRegistry:

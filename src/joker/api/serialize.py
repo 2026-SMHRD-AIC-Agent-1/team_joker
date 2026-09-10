@@ -22,7 +22,8 @@
 
 from __future__ import annotations
 
-from joker.models import SCOPE_NOTICE, technique_ko
+from joker.models import (FINDING_STATES, SCOPE_NOTICE, finding_state,  # noqa: F401
+                          technique_ko)
 from joker.nodes.report import filter_recommendation
 from joker.safety.masking import mask_secrets
 
@@ -85,14 +86,50 @@ def _by_technique_array(attempts: list[dict]) -> list[dict]:
     ]
 
 
+_ATTACK_LIMIT = 400
+
+
 def _attempt(a: dict) -> dict:
+    """시도 1건. ★ rendered_text(실제로 던진 공격 문구)는 v0.5 에서 추가됐다.
+
+    왜 실어도 되나: 공격문의 플레이스홀더는 {asset}/{persona}/{org}/{decoy} 4개뿐이고,
+    nodes/attack.build_context() 가 {asset} 에 자산의 **이름만** 넣는다(값은 넣지 않는다).
+    {decoy} 는 가짜값 고정이다. 즉 사용자의 진짜 비밀값이 공격문에 실릴 경로가 없다.
+    그래도 response_excerpt 와 **같은 마스킹 경로**를 한 번 더 태운다(보장을 두 겹으로).
+
+    왜 실어야 하나: 공격 문구가 없으면 사용자는 'AUTH-06 이 뚫렸다'를 검증할 방법이 없다.
+    비회원에게는 attempts 배열 자체가 안 나가므로(게이팅) 시드 전량 수집도 막힌다.
+    """
     return {
         "attack_id": a["attack_id"], "technique": a["technique"],
-        "technique_ko": technique_ko(a["technique"]), "round_no": a["round_no"],
+        "technique_ko": technique_ko(a["technique"]), "goal": a.get("goal"),
+        "round_no": a["round_no"],
         "verdict": a["verdict"], "verdict_by": a["verdict_by"],
         "leak_channel": a["leak_channel"],
+        "rendered_text": mask_excerpt(a.get("rendered_text") or "", _ATTACK_LIMIT),
         "response_excerpt": mask_excerpt(a.get("response_raw") or ""),
     }
+
+
+# 발견 항목(Finding) 5상태. round_no × verdict 두 컬럼에서 파생될 뿐, 새로 지어낸 등급이 아니다.
+#   unresolved  r1 leak  → r2 leak    지시문 처방으로 못 막음 = 입력단 탐지기가 필요한 건수
+#   regressed   r1 block → r2 leak    처방이 새로 연 구멍 (실측 99건 존재 — 빠뜨리면 합이 안 맞는다)
+#   resolved    r1 leak  → r2 block   처방으로 막힘
+#   unaffected  r1 block → r2 block   원래 안 뚫림
+#   no_retry    r2 없음               재진단 미실행(비교 불가)
+def findings_summary(attempts: list[dict]) -> dict:
+    """attack_id 별로 r1/r2 를 접어 상태별 건수를 센다.
+
+    ★ 합이 total 과 반드시 같아야 한다. 화면이 '합이 안 맞는 표'를 그리는 순간 신뢰가 끝난다.
+    """
+    pairs: dict[str, dict] = {}
+    for a in attempts:
+        pairs.setdefault(a["attack_id"], {})[a["round_no"]] = a.get("verdict")
+    out = {k: 0 for k in FINDING_STATES}
+    for rounds in pairs.values():
+        out[finding_state(rounds.get(1), rounds.get(2))] += 1
+    out["total"] = len(pairs)
+    return out
 
 
 # 비회원에게 보여줄 처방문 미리보기 줄 수. 0 이면 "뭘 얻는지" 감이 안 오고,
@@ -114,6 +151,8 @@ def _apply_gate(out: dict) -> dict:
 
     report["patched_prompt"] = "\n".join(lines[:GATE_PREVIEW_LINES])
     report["attempts"] = []          # ★ 잘라내는 게 아니라 아예 안 담는다
+    # ★ findings_summary 는 건드리지 않는다. 건수는 위험 사실이고, 가려지는 것은 그 '증거'
+    #   (공격 문구·응답·판정 근거)뿐이다. 위험을 가리면 게이팅이 아니라 은폐가 된다.
 
     out["gated"] = {
         "is_gated": True,
@@ -159,6 +198,7 @@ def serialize_run(run: dict, viewer: dict | None = None) -> dict:
             "grade": None, "inconclusive": True,
             "reason": "보호할 값 자산(secret_value)이 0개입니다. 진단할 대상이 없어 등급을 매기지 않습니다.",
             "asr_before": None, "asr_after": None, "asr_delta": None, "attempts": [],
+            "findings_summary": {k: 0 for k in (*FINDING_STATES, "total")},
         }
         # 진단 불가는 처방 자체가 없다 → 가릴 것도 없다. 그래도 키는 항상 내려보낸다
         # (화면이 out["gated"] 존재 여부로 분기하지 않게 — 없는 키는 곧 버그가 된다).
@@ -173,6 +213,9 @@ def serialize_run(run: dict, viewer: dict | None = None) -> dict:
         "asr_delta": head.get("asr_delta"),
         "by_technique": _by_technique_array(attempts),
         "applied_patterns": run.get("applied_patterns", []),
+        # 발견 항목 상태별 건수. ★ 비회원에게도 내려간다 — 이건 '해결책'이 아니라 '위험 사실'이다.
+        #   "미해결 2건" 은 곧 "입력단 탐지기가 필요한 이유 2건" 이라 가입 동기의 핵심이기도 하다.
+        "findings_summary": findings_summary(attempts),
         # 처방 ② 입력단 필터 권고 — 건수·사유만 담는다(공격문 원문은 안 담는다).
         "filter_recommendation": filter_recommendation(
             [a.get("rendered_text") or "" for a in attempts
@@ -186,11 +229,45 @@ def serialize_run(run: dict, viewer: dict | None = None) -> dict:
     return out
 
 
-def running_payload(run_id: str, target: dict, estimated: dict) -> dict:
+# 진단 파이프라인의 단계. ★ 지어낸 체크리스트가 아니라 pipeline.py 의 실제 함수 순서다.
+PROGRESS_STAGES = [
+    {"key": "recon", "label": "지시문 분석 · 보호 자산 식별"},
+    {"key": "attack_r1", "label": "1차 공격 실행"},
+    {"key": "patch", "label": "방어 문구 처방"},
+    {"key": "attack_r2", "label": "처방 후 재공격"},
+    {"key": "report", "label": "등급·리포트 생성"},
+]
+_STAGE_INDEX = {s["key"]: i for i, s in enumerate(PROGRESS_STAGES)}
+
+
+def progress_payload(progress: dict | None) -> dict:
+    """잡이 기록한 진행 상황 → 응답 블록.
+
+    ★ 퍼센트를 만들지 않는다. 던진 공격 수·모델 호출 수처럼 **센 값만** 내려보낸다.
+      (적응형 샘플링이라 전체 공격 수는 실행 도중에만 확정된다 — 총량을 추정해 %를 그리면
+       그 순간부터 화면이 거짓말을 시작한다.)
+    """
+    p = progress or {}
+    stage = p.get("stage") or "recon"
+    return {
+        "stage": stage,
+        # 아직 워커가 집어가지 않은 진단(앞 진단이 실행 중)은 '대기 중' 이라고 말한다.
+        "queued": bool(p.get("queued", True)),
+        "stage_index": _STAGE_INDEX.get(stage, 0),
+        "stages": PROGRESS_STAGES,
+        "stage_done": p.get("stage_done"),      # 현재 단계에서 실행한 공격 수(정확)
+        "stage_total": p.get("stage_total"),    # 현재 배치의 공격 수(정확)
+        "calls_done": p.get("calls_done", 0),   # 지금까지의 대상 모델 호출 수(센 값)
+    }
+
+
+def running_payload(run_id: str, target: dict, estimated: dict,
+                    progress: dict | None = None) -> dict:
     """진행 중 진단의 GET 응답. 아직 DB 에 없으므로 레지스트리 정보로 만든다."""
     return {
         "run_id": run_id, "status": "running",
         "target": target, "estimated_calls": estimated.get("victim_max"),
+        "progress": progress_payload(progress),
         "report": None,
     }
 

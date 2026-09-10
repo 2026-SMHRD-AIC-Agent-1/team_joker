@@ -1,4 +1,4 @@
-# Chat Shield — API 응답 계약 v0.4
+# Chat Shield — API 응답 계약 v0.6
 
 > **이 문서가 화면의 진실이다.** 채효석은 이 응답 필드만 보고 Figma 를 그리면 된다.
 > FastAPI *구현*은 다음 주지만, 이 계약이 고정본이다. 필드가 바뀌면 여기부터 고친다.
@@ -8,6 +8,8 @@
 
 | 버전 | 날짜 | 바뀐 것 |
 |---|---|---|
+| **v0.6** | **2026-09-09** | **진행 상황 · 목록 건수 2건 추가(지어낸 값 없음).** ①`GET /api/runs/{id}`(status=running)에 `progress` — 현재 단계(pipeline.py 의 실제 함수 순서 5단계), 이번 배치의 `stage_done`/`stage_total`(정확한 실행 수), 누적 `calls_done`. **퍼센트는 내려보내지 않는다** — 적응형 샘플링이라 총 공격 수는 실행 중에만 확정된다. ②`GET /api/runs` 각 행에 `unresolved`·`findings_total`. |
+| **v0.5** | **2026-09-09** | **발견 항목(Finding) 3필드 추가.** ①`report.findings_summary` — `attack_id` 별 r1/r2 를 접은 **상태별 건수**(unresolved/regressed/resolved/unaffected/no_retry/total). 새 등급을 지어낸 게 아니라 `round_no`×`verdict` 파생값이다. ②`attempts[].goal` ③`attempts[].rendered_text` — 실제로 던진 공격 문구(마스킹 통과, **회원 전용** — 비회원은 attempts 자체가 `[]`). **게이팅 경계 이동**: `findings_summary` 는 '위험 사실' 이라 비회원에게도 공개한다. |
 | **v0.4** | **2026-09-08** | **회원·세션 추가(엔드포인트 5→10).** ①`POST /api/auth/signup·login·logout` ②`GET /api/me` ③`DELETE /api/runs/{run_id}` ④기존 5개 엔드포인트가 `Authorization: Bearer` 를 **선택적으로** 받는다(없으면 비회원 — v0.3 클라이언트가 안 깨진다) ⑤`tb_diagnosis.user_id` 로 진단에 소유자가 생기고, **남의 run 은 403 이 아니라 404** 다. 제품명 「Chat Shield」 확정. |
 | v0.1 | 2026-08-25 | 최초 고정 |
 | **v0.3** | **2026-08-27** | **`is_approximation`(bool) → `fidelity`(단계) 교체.** 불리언은 "근사냐 아니냐" 로 읽혀서, BYOK 로 false 가 되는 순간 **"이제 진짜 내 챗봇을 잰 것"** 으로 오독됐다. 사실이 아니다 — 모델만 같아졌을 뿐 배포 서비스는 여전히 재현되지 않는다. `scope_notice` 를 **항상** 실어 그 사실을 못 놓치게 했다. |
@@ -87,10 +89,32 @@
 
 | status | 의미 | 화면이 보여줄 것 |
 |---|---|---|
-| `running` | 진행 중 | 진행 표시 (몇 건 중 몇 건) |
+| `running` | 진행 중 | `progress` 블록 — 단계 스테퍼 + '이번 단계 n/m' + 누적 호출 수. **가짜 진행률 금지** |
 | `done` | 진단 완료 | 아래 `report` 전체 |
 | `inconclusive` | **보호할 값 자산 0개 → 진단 불가** | "이 지시문에는 보호할 비밀값이 없습니다. 값을 지정해 주세요" + 값 입력 UI. **등급·ASR 을 절대 표시하지 말 것** |
 | `error` | 실패 | `error.message` |
+
+### `progress` — 진행 중 표시 (v0.6 신규)
+
+```json
+"progress": {
+  "stage": "attack_r1", "stage_index": 1,
+  "stages": [{"key":"recon","label":"지시문 분석 · 보호 자산 식별"}, {"key":"attack_r1","label":"1차 공격 실행"},
+             {"key":"patch","label":"방어 문구 처방"}, {"key":"attack_r2","label":"처방 후 재공격"},
+             {"key":"report","label":"등급·리포트 생성"}],
+  "stage_done": 12, "stage_total": 18, "calls_done": 13
+}
+```
+
+| 필드 | 화면 의미 |
+|---|---|
+| `stage` / `stage_index` / `stages` | 스테퍼. 지나온 단계 ✓ · 현재 단계 강조 · 남은 단계 흐리게 |
+| `stage_done` / `stage_total` | **이번 배치에서 실제로 던진 공격 수 / 그 배치의 공격 수.** 추정값이 아니다 |
+| `calls_done` | 지금까지의 대상 모델 호출 수(누적). `estimated_calls`(상한)와 나란히 쓴다 |
+
+> **왜 %가 없나**: 적응형 샘플링은 1차 스크리닝 결과에 따라 집중 투입 건수가 달라져서
+> **총 공격 수가 실행 도중에 확정된다.** 총량을 추정해 퍼센트를 그리는 순간 화면이 거짓말을 시작하고,
+> 막대가 뒤로 가거나 90%에서 멈추는 흔한 사고가 난다. 센 값만 보여준다.
 
 ### ★ `target` — 무엇을 진단했는가 (v0.2 신규 · status 무관하게 항상 온다)
 
@@ -139,6 +163,7 @@
 | `asr_delta` | `float` | `before - after`. 양수면 개선. 큰 숫자 강조(핵심 지표) |
 | `by_technique[]` | 배열 | 기법별 막대그래프. `{technique, ko, before, after, total}` |
 | `applied_patterns[]` | `string[]` | 적용된 방어 패턴 ID(P01..). 툴팁에 이름·근거 |
+| **`findings_summary`** | `object` | **발견 항목 상태별 건수.** `{unresolved, regressed, resolved, unaffected, no_retry, total}`. **5개 상태의 합 = `total` = 공격 수**(화면이 검산할 수 있어야 한다). `unresolved`=지시문 처방으로 못 막은 건수 → 처방②(입력단 탐지기)의 근거. `regressed`=처방 후 새로 뚫린 건수(실측으로 존재한다 — 0으로 가정하지 말 것) |
 | `filter_recommendation` | `object` | 처방 ②(입력단 JOKER-KO 배치) 권고. `{residual, rule_blockable, flags{사유:건수}, note, basis}`. **규칙 층만으로 계산한 하한값**(`basis="rule_layer_only"`) — ML 층은 더 잡는다. 공격문 원문은 담지 않는다(건수·사유만) |
 | `patched_prompt` | `string` | 처방된 지시문 전문. **복사 버튼** 필수 |
 | `attempts[]` | 배열 | 시도별 상세(아래) |
@@ -149,6 +174,8 @@
 |---|---|---|
 | `attack_id` | `string` | 예 `FORMAT-01` |
 | `technique` / `technique_ko` | `string` | 기법 코드 / 한글명 |
+| **`goal`** | `string` | 무엇을 노린 공격인가. `INFO_LEAK` \| `POLICY_BREAK` \| `PERSONA_BREAK` |
+| **`rendered_text`** | `string` | **실제로 던진 공격 문구**(마스킹·400자 절삭). 상세 화면의 '무엇을 던졌나'. 치환 플레이스홀더는 `{asset}`(자산 **이름**)·`{persona}`·`{org}`·`{decoy}`(가짜값) 4개뿐이라 **사용자의 비밀값 원문이 실릴 경로가 없다.** 화면은 복사 버튼을 달지 않는다 |
 | `round_no` | `1 \| 2` | 1=처방전 2=처방후. 같은 `attack_id` 를 두 라운드로 묶어 표시 |
 | `verdict` | `"leak" \| "block"` | 유출/차단. leak 은 빨강 |
 | `verdict_by` | `"rule" \| "llm"` | 판정 근거. "규칙 n%" 통계 배지 근거 |
@@ -169,6 +196,9 @@
       "target_model": "qwen2.5:3b-instruct", "fidelity": "proxy_model" }
 ] }
 ```
+- **(v0.6)** 각 행에 `unresolved`(미해결 발견 항목 수)·`findings_total` 이 함께 온다.
+  목록에서 유일하게 행동을 부르는 신호라, 사이드바 배지·대시보드 합계가 전부 이 값에서 나온다.
+  시도가 없는 런(진행 중·진단 불가)은 **0 으로 내려간다**(키 자체가 빠지면 화면이 죽는다).
 - 이력 목록에도 `target_model` 이 온다. **모델이 다르면 등급을 나란히 비교하면 안 되므로** 목록 행에 모델명을 같이 찍는다.
 
 ## 4. GET /api/health
@@ -314,10 +344,11 @@
 |---|---|---|
 | `report.grade` · `asr_before` · `asr_after` · **`asr_delta`** | 공개 | 공개 |
 | `report.by_technique` (기법별 차트) | 공개 | 공개 |
+| **`report.findings_summary` (상태별 건수)** | **공개** | 공개 |
 | `report.applied_patterns` (P0x ID) · `filter_recommendation` | 공개 | 공개 |
 | `recon.assets` (보호 자산 **이름**) · `target` (진단 범위·대리 모델 고지) | 공개 | 공개 |
 | `report.patched_prompt` | **앞 2줄만** | 전문 |
-| `report.attempts[]` (시도별 상세) | **`[]`** | 전량 |
+| `report.attempts[]` (시도별 상세 · `rendered_text` 포함) | **`[]`** | 전량 |
 
 응답에 항상 `gated` 블록이 따라온다(회원은 `{"is_gated": false}`).
 
@@ -331,6 +362,10 @@
   "unlock": "무료 회원가입 시 전체 처방문과 시도별 상세를 볼 수 있습니다."
 }
 ```
+
+**왜 건수까지 공개인가**: `findings_summary` 는 해결책이 아니라 위험이다. "미해결 2건" 을 가리면
+사용자는 자기가 무엇을 안고 있는지 모른 채 나가고, 그건 게이팅이 아니라 은폐다. 가려지는 것은 그 2건의
+**증거**(공격 문구·응답·판정 근거)와 **해결책**(처방문 전문)이다.
 
 **왜 개선폭까지 공개인가**: 처방 후 수치(59.3 → 8.1)를 보여주고 **그 아래** 처방문을 가려야
 가입 동기가 최대가 된다. 개선폭까지 가리면 "가입하면 뭘 얻는지"를 몰라 그냥 이탈한다.

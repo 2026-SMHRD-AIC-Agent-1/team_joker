@@ -38,7 +38,15 @@ def run_attacks(
     context: dict[str, str],
 ) -> list[Attempt]:
     out: list[Attempt] = []
-    for atk in attacks:
+    total = len(attacks)
+    for i, atk in enumerate(attacks, 1):
+        # 진행 통지는 '센 값' 만 보낸다 — i/total 은 이 배치에서 정확하다(추정 아님).
+        cb = getattr(deps, "on_progress", None)
+        if cb is not None:
+            try:
+                cb(f"attack_r{round_no}", stage_done=i, stage_total=total, call=True)
+            except Exception:  # noqa: BLE001
+                pass
         rendered = render_attack(atk, context)
         res = deps.victim.complete(
             system=system_prompt,

@@ -17,6 +17,7 @@ import json
 import sqlite3
 from pathlib import Path
 
+from joker.models import finding_state
 from joker.state import RunState
 
 _SCHEMA_PATH = Path(__file__).parent / "schema.sql"
@@ -232,9 +233,39 @@ class Repository:
                 rows = con.execute(
                     self._LIST_COLS + "WHERE user_id = ? ORDER BY created_at DESC",
                     (user_id,)).fetchall()
+            runs = [dict(r) for r in rows]
+            self._attach_finding_counts(con, runs)
         finally:
             con.close()
-        return [dict(r) for r in rows]
+        return runs
+
+    @staticmethod
+    def _attach_finding_counts(con, runs: list[dict]) -> None:
+        """목록 각 행에 발견 항목 수를 붙인다 — unresolved(미해결) · findings_total.
+
+        ★ 왜 목록에 필요한가: 등급·ASR만 나열하면 "그래서 지금 남은 게 몇 건인데?" 에 답을 못 한다.
+          목록의 유일하게 행동을 부르는 신호가 미해결 건수다.
+        ★ N+1 을 만들지 않는다 — run 하나당 질의하지 않고 IN 절로 한 번에 접는다.
+        ★ 상태 판정은 models.finding_state 하나만 쓴다(화면·API·저장소가 같은 규칙).
+        """
+        if not runs:
+            return
+        ids = [r["run_id"] for r in runs]
+        holes = ",".join("?" * len(ids))
+        pairs = con.execute(
+            f"""SELECT run_id, attack_id,
+                       MAX(CASE WHEN round_no = 1 THEN verdict END) AS v1,
+                       MAX(CASE WHEN round_no = 2 THEN verdict END) AS v2
+                FROM tb_attempt WHERE run_id IN ({holes})
+                GROUP BY run_id, attack_id""", ids).fetchall()
+        counts: dict[str, dict] = {i: {"unresolved": 0, "findings_total": 0} for i in ids}
+        for row in pairs:
+            c = counts[row["run_id"]]
+            c["findings_total"] += 1
+            if finding_state(row["v1"], row["v2"]) == "unresolved":
+                c["unresolved"] += 1
+        for r in runs:
+            r.update(counts[r["run_id"]])
 
     def claim_run(self, run_id: str, user_id: str) -> bool:
         """주인 없는(user_id IS NULL) 진단을 이 회원 것으로 귀속시킨다.
