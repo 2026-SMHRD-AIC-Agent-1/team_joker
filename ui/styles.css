@@ -584,6 +584,37 @@ html body .stApp [class*="st-key-ex_"] button [data-testid="stMarkdownContainer"
 .next-action .step {width:30px;height:30px;display:grid;place-items:center;background:var(--brand-soft);color:var(--brand);font-weight:750;border-radius:50%;font-size:.85rem;}
 .next-action b {font-size:1rem;color:var(--ink);}
 .next-action p {font-size:.9rem !important;margin:6px 0 0;line-height:1.7 !important;}
+/* ── 진행 4단계 (완료 상태) ────────────────────────────────
+   ★ 진단이 끝난 뒤에도 '무슨 단계를 거쳤나' 가 보여야 한다. 예전에는 진행 화면에만 있어서
+     끝나는 순간 사라졌고, 결과만 보는 사람은 과정을 볼 방법이 없었다. */
+.flow {display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line-2);
+  border:1px solid var(--line);border-radius:var(--r-m);overflow:hidden;margin:4px 0 10px;}
+.flow-step {background:var(--surface);padding:14px 16px;min-width:0;}
+.flow-step .n {display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;
+  background:var(--brand-soft);color:var(--brand);font-size:.72rem;font-weight:750;
+  margin-bottom:8px;}
+.flow-step b {display:block;font-size:.9rem;color:var(--ink);letter-spacing:-.01em;}
+.flow-step .d {display:block;font-size:.78rem;color:var(--muted);margin-top:4px;
+  line-height:1.55;font-variant-numeric:tabular-nums;}
+/* 숫자 판의 화살표 칸 — 값이 아니라 '두 수를 잇는 기호' 라 폭을 좁게 잡는다 */
+/* 보강 전 → 후 는 붙여서 한 쌍으로 읽히게 하고, 조치 필요는 성격이 다른 수라
+   실선으로 끊어 오른쪽 끝으로 민다 */
+.report-numbers {grid-template-columns:auto auto auto 1fr;}
+.report-numbers > div:last-child {justify-self:end;text-align:right;
+  padding-left:32px;border-left:1px solid var(--line-2);}
+.rn-arrow {text-align:center;}
+.rn-arrow .report-number {color:var(--muted2);font-weight:500;}
+@media(max-width:900px){
+  .flow {grid-template-columns:repeat(2,1fr);}
+}
+@media(max-width:560px){
+  .flow {grid-template-columns:1fr;}
+  .report-numbers {grid-template-columns:1fr !important;}
+  .report-numbers > div:last-child {justify-self:stretch;text-align:left;
+    padding-left:0;border-left:none;border-top:1px solid var(--line-2);padding-top:16px;}
+  .rn-arrow {display:none;}
+}
+
 /* ── 두 기능의 관계도 ──────────────────────────────────────
    ★ 팀 검토 지적: "JOKER-KO 랑 어떻게 연결되는지 모르겠다 / 너무 다른 기능 같다".
    ★ 여기서 그리는 것은 **코드의 실제 관계**다. 처음엔 요청 흐름(입력→탐지기→모델)을 그렸다가
@@ -623,3 +654,12 @@ html body .stApp [class*="st-key-ex_"] button [data-testid="stMarkdownContainer"
 [class*="st-key-authbox"] {box-shadow:var(--sh-2);}
 @media(max-width:900px){.block-container{padding:28px 22px 56px !important;}.report-hero{padding:24px;}.report-title{font-size:1.65rem;}.report-numbers{gap:16px;}.report-number{font-size:1.7rem;}}
 @media(max-width:560px){.block-container{padding:24px 16px 48px !important;}.report-hero{padding:22px 20px;}.report-title{font-size:1.5rem;}.report-numbers{grid-template-columns:1fr;gap:16px;padding-top:16px;margin-top:20px;}.report-numbers>div{display:flex;align-items:center;justify-content:space-between;}.report-label{margin:0;}.report-number{font-size:1.6rem;}.report-lead{font-size:.94rem;}}
+
+/* ★ 900px 이하: 4칸이 가로로 남으면 '조치가 필요한 항목' 라벨이 세 줄로 접힌다(실측).
+   전·후 한 쌍만 가로로 두고, 성격이 다른 조치 필요는 아랫줄 전체 폭으로 내린다. */
+@media(max-width:900px){
+  .report-numbers {grid-template-columns:auto auto auto;}
+  .report-numbers > div:last-child {grid-column:1 / -1;justify-self:stretch;text-align:left;
+    padding-left:0;border-left:none;border-top:1px solid var(--line-2);
+    padding-top:14px;margin-top:4px;}
+}

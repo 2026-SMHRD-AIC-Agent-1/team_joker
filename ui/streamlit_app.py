@@ -788,16 +788,57 @@ def render_summary(rep: dict):
     else:
         title = "이번 재시험에서 유출이 발견되지 않았습니다."
         lead = "동일한 공격을 보강안에 다시 적용한 결과입니다. 다른 공격과 실제 서비스까지 안전하다는 뜻은 아닙니다."
+    # ★ 세 번째 칸을 '시험한 공격 유형' 에서 '조치 필요' 로 바꿨다(2026-09-10).
+    #   공격 57건을 던지면 유형도 57종이라 같은 숫자가 판에 두 번 찍혔고, 팀 검토에서
+    #   "숫자가 뭐가 뭔지 모르겠다" 가 나왔다. 던진 공격 수는 아래 진행 4단계 줄이 말한다.
+    #   여기 세 번째 자리는 '그래서 지금 뭘 해야 하나' 에 답하는 수여야 한다.
+    need = action_required(rep)
+    # 전후를 화살표로 이어 '같은 공격을 두 번 던졌다' 가 판에서 읽히게 한다.
+    after_color = sev("unresolved") if after else sev("resolved")
     st.markdown(
         '<div class="report-hero"><div class="report-eyebrow">DIAGNOSIS REPORT</div>'
         f'<div class="report-title">{title}</div><div class="report-lead">{lead}</div>'
         '<div class="report-numbers">'
-        f'<div><div class="report-label">보강 전 유출</div><div class="report-number">{before}<small>건</small></div></div>'
-        f'<div><div class="report-label">보강안 재시험 유출</div><div class="report-number" style="color:{sev("unresolved") if after else sev("resolved")}">{after}<small>건</small></div></div>'
-        f'<div><div class="report-label">시험한 공격 유형</div><div class="report-number">{total}<small>종</small></div></div>'
+        f'<div><div class="report-label">보강 전 유출</div>'
+        f'<div class="report-number">{before}<small>건</small></div></div>'
+        f'<div class="rn-arrow"><div class="report-label">같은 공격을 다시</div>'
+        f'<div class="report-number">→</div></div>'
+        f'<div><div class="report-label">보강 후 남은 유출</div>'
+        f'<div class="report-number" style="color:{after_color}">{after}<small>건</small></div></div>'
+        f'<div><div class="report-label">조치가 필요한 항목</div>'
+        f'<div class="report-number" style="color:{sev("unresolved") if need else sev("resolved")}">'
+        f'{need}<small>건</small></div></div>'
         '</div></div>', unsafe_allow_html=True)
     st.markdown('<div class="report-meta">보강안은 아직 운영 서비스에 적용되지 않았습니다. '
                 '아래에서 실제 증거와 적용할 내용을 확인할 수 있습니다.</div>', unsafe_allow_html=True)
+
+
+def render_run_flow(rep: dict, total: int, assets: list | None):
+    """진단이 실제로 지나온 4단계. **끝난 뒤에도** 보이게 리포트 상단에 둔다.
+
+    ★ 팀 검토: "뭐가 어떻게 진행된 건지 모르겠다". 원인은 분량이 아니라 흐름이 화면에서
+      사라진 것이었다 — stage_tracker 는 _poll_running 안에서만 그려서 진단이 끝나는 순간
+      단계 표시가 통째로 없어졌다. 결과만 보는 사람은 과정을 볼 방법이 없었다.
+    ★ 여기 숫자는 전부 응답에 있는 값이다. 진행률·소요 시간처럼 없는 값은 만들지 않는다.
+      값이 없으면 칸을 비우지 말고 '—' 로 두고, 있는 것만 말한다.
+    ★ 이 줄이 '같은 공격을 두 번 던졌다' 를 말한다. 그래서 위 숫자 판에서 그 문구를 뺐다.
+    """
+    patterns = rep.get("applied_patterns") or []
+    steps = [
+        ("지시문 분석", f"보호 대상 {len(assets)}개" if assets is not None else "지시문에서 지킬 값 식별"),
+        ("공격 진단", f"한국어 공격 {total}건" if total else "공격 실행"),
+        ("보강안 생성", f"방어 패턴 {len(patterns)}개 조립" if patterns else "방어 문구 조립"),
+        ("재시험", f"같은 공격 {total}건 재생" if total else "같은 공격 재생"),
+    ]
+    cells = "".join(
+        f'<div class="flow-step"><span class="n">{i}</span>'
+        f'<b>{esc(name)}</b><span class="d">{esc(detail)}</span></div>'
+        for i, (name, detail) in enumerate(steps, 1))
+    st.markdown(f'<div class="flow">{cells}</div>'
+                '<div class="layers-note">네 단계가 자동으로 돌았습니다. '
+                '<b>3·4단계가 이 도구의 핵심</b>입니다 — 고칠 문구를 만든 뒤 '
+                '<b>같은 공격을 그대로 다시 던져</b> 정말 좋아졌는지 확인합니다.</div>',
+                unsafe_allow_html=True)
 
 
 def render_evidence_cards(rep: dict, gated: dict | None = None):
@@ -1551,6 +1592,8 @@ def render_done(run: dict):
         render_finding_detail(run, rep, fid)
         return
     render_summary(rep)
+    render_run_flow(rep, (rep.get("findings_summary") or {}).get("total", 0),
+                    (run.get("recon") or {}).get("assets"))
     render_evidence_cards(rep, gated)
     section("02 · 권고 조치", "문구 보강만으로 끝내지 않고, 적용 후 정상 업무까지 확인하세요.")
     # ★ 두 기능의 관계도를 권고 맨 위에 둔다 — 아래 1번 권고가 왜 나왔는지를
