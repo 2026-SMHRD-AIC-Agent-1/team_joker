@@ -809,8 +809,26 @@ def render_summary(rep: dict):
         f'<div class="report-number" style="color:{sev("unresolved") if need else sev("resolved")}">'
         f'{need}<small>건</small></div></div>'
         '</div></div>', unsafe_allow_html=True)
-    st.markdown('<div class="report-meta">보강안은 아직 운영 서비스에 적용되지 않았습니다. '
-                '아래에서 실제 증거와 적용할 내용을 확인할 수 있습니다.</div>', unsafe_allow_html=True)
+
+
+def render_scope_note(run: dict):
+    """결과의 범위와 한계. ★ 문장을 **지우지 않고 읽는 순서만** 바꾼다.
+
+    ★ 팀 검토(2026-09-10): "글이 너무 많다". 재 보니 리포트 본문 2,371자 중 결과가 아니라
+      단서·주의 문장이 약 800자였고, 그중 세 줄은 헤드라인보다 **앞** 에 있었다 —
+      결과를 보기도 전에 단서부터 읽는 순서였다.
+    ★ 그렇다고 지우면 안 된다. '실제 서비스를 진단한 게 아니다' 는 우리가 반드시 해야 하는
+      말이고, 그 말을 빼는 순간 이 화면은 성능을 부풀리는 화면이 된다. 그래서 **접는다**.
+      히어로의 lead 한 줄("실제 서비스까지 안전하다는 뜻은 아닙니다")이 보이는 경로에
+      이미 남아 있으므로, 나머지 셋은 이름표를 달아 한곳에 모아 둔다.
+    """
+    lines = ["<b>보강안은 아직 운영 서비스에 적용되지 않았습니다.</b> 아래에서 실제 증거와 "
+             "적용할 내용을 확인할 수 있습니다.", SCOPE_NOTICE]
+    if run.get("privacy_notice"):
+        lines.append(esc(run["privacy_notice"]))
+    with st.expander("이 결과의 범위와 한계", expanded=False):
+        st.markdown('<div class="report-meta">' + "<br>".join("· " + x for x in lines) +
+                    '</div>', unsafe_allow_html=True)
 
 
 def render_run_flow(rep: dict, total: int, assets: list | None):
@@ -835,9 +853,8 @@ def render_run_flow(rep: dict, total: int, assets: list | None):
         f'<b>{esc(name)}</b><span class="d">{esc(detail)}</span></div>'
         for i, (name, detail) in enumerate(steps, 1))
     st.markdown(f'<div class="flow">{cells}</div>'
-                '<div class="layers-note">네 단계가 자동으로 돌았습니다. '
-                '<b>3·4단계가 이 도구의 핵심</b>입니다 — 고칠 문구를 만든 뒤 '
-                '<b>같은 공격을 그대로 다시 던져</b> 정말 좋아졌는지 확인합니다.</div>',
+                '<div class="layers-note"><b>3·4단계가 이 도구의 핵심</b>입니다 — '
+                '고칠 문구를 만든 뒤 <b>같은 공격을 그대로 다시 던집니다</b>.</div>',
                 unsafe_allow_html=True)
 
 
@@ -893,7 +910,8 @@ def render_evidence_cards(rep: dict, gated: dict | None = None):
         render_gate("대표 항목의 공격 문구와 응답 전문", n, n,
                     gated.get("unlock", ""), key="evidence", decoy="attempts")
         return
-    st.caption("최대 3개 대표 항목 · 인식한 보호값은 마스킹됩니다. 모든 시험은 아래 전체 기록에서 확인하세요.")
+    # 마스킹 고지는 '이 결과의 범위와 한계' 가 맡는다 — 한 화면에서 두 번 말하지 않는다.
+    st.caption("최대 3개 대표 항목입니다. 모든 시험은 아래 ‘전체 공격 기록 확인’ 에 있습니다.")
 
 
 def _technique_bars(bt: list) -> str:
@@ -962,8 +980,11 @@ def report_context(run: dict, t: dict):
                         st.rerun()
                     else:
                         st.error(err_msg(resp))
-    # scope_notice 는 fidelity 와 무관하게 항상 (BYOK 여도 '진짜 챗봇 진단' 이 아니다)
-    st.caption("시스템 지시문과 선택 모델을 시험한 결과입니다. 실제 서비스의 RAG·도구·대화 이력은 포함하지 않습니다.")
+
+
+# 범위 고지 — fidelity 와 무관하게 항상 (BYOK 여도 '진짜 챗봇 진단' 이 아니다).
+SCOPE_NOTICE = ("시스템 지시문과 선택 모델을 시험한 결과입니다. "
+                "실제 서비스의 RAG·도구·대화 이력은 포함하지 않습니다.")
 
 
 # ── 결과: 발견 항목 목록 (필터 · 검색) ───────────────────────
@@ -1274,10 +1295,12 @@ def render_layer_relation(residual: int):
             f'탐지기를 배치할 근거입니다.' if residual else
             '이번 진단에서는 남은 유출이 없었습니다. 다만 새로운 우회 시도는 계속 나오므로, '
             '탐지기는 그때 먼저 걸러 주는 2차 방어로 함께 배치하기를 권고합니다.')
+    # ★ 예전에는 여기에 '진단은 탐지기를 거치지 않고…' 두 문장이 더 있었다. 위 두 상자의
+    #   설명이 정확히 같은 말을 하고 있어 중복이라 뺐다(팀 검토: 글이 너무 많다).
+    #   빠진 기술적 설명은 README §3 이 그대로 가지고 있다.
     st.markdown(f'<div class="layers-note"><b>두 기능은 서로를 호출하지 않습니다.</b> '
-                f'진단은 탐지기를 거치지 않고 대상 모델에 공격을 던지고, 탐지기는 진단과 별개로 '
-                f'문구 하나를 판정합니다. 둘을 잇는 것은 <b>진단 결과가 탐지기 배치의 '
-                f'근거가 된다</b>는 관계입니다. {tail}</div>', unsafe_allow_html=True)
+                f'진단이 찾아낸 결과가 탐지기를 배치할 근거가 됩니다. {tail}</div>',
+                unsafe_allow_html=True)
 
 
 def filter_layer_action(rep: dict, index: int) -> bool:
@@ -1329,7 +1352,6 @@ def detector_cta(rep: dict):
         return
     residual = fr.get("residual") or 0
     sample = _residual_sample(rep)
-    demo = not sample                     # 넘길 실제 문구가 없으면 예시 문구로라도 이어 준다
     h = health(api_base())
     with st.container(key="row_rx"):
         c1, c2 = st.columns([1.7, 2.3], vertical_alignment="center")
@@ -1346,17 +1368,17 @@ def detector_cta(rep: dict):
             tail = ("보강 후에도 뚫린 공격 문구 1건을 탐지 화면에 넣어 둡니다 — "
                     "지시문 보강이 놓친 그 요청을 탐지기가 잡는지 그 자리에서 확인할 수 있습니다.")
         elif not residual:
-            tail = ("이 진단은 남은 유출이 없어 넘길 공격 문구가 없습니다. 대신 <b>난독화 예시</b>를 "
-                    "넣어 둡니다 — 탐지기가 어떻게 잡는지 볼 수 있습니다.")
+            tail = ("남은 유출이 없어 넘길 문구가 없습니다. 대신 <b>난독화 예시</b>를 넣어 둡니다 — "
+                    "이 진단의 결과가 아니라 화면이 넣어 준 고정 문장입니다.")
         else:
             tail = ("남은 공격 문구는 회원 리포트에서만 넘겨받습니다. 대신 <b>난독화 예시</b>를 "
-                    "넣어 둡니다.")
+                    "넣어 둡니다 — 이 진단의 결과가 아닌 고정 문장입니다.")
         if h is not None and not h.get("detector_ready"):
             tail += " ※ 이 PC 에는 탐지 모델이 없어 화면에 안내가 뜹니다."
+        # ★ 예전에는 '※ 예시 문구는 화면이 넣어 준 고정 문장' 이 아래 별도 st.caption 한 줄로
+        #   또 붙었다. 위 두 tail 이 이미 같은 말을 하고 있어 설명이 세 겹이었다 — 한 겹 뺐다.
         c2.markdown(f'<div class="layers-note" style="margin:0;padding-left:8px">{tail}</div>',
                     unsafe_allow_html=True)
-    if demo:
-        st.caption("※ 예시 문구는 화면이 넣어 준 고정 문장이며, 이 진단의 결과가 아닙니다.")
 
 
 def render_filter_layer(rep: dict):
@@ -1449,8 +1471,8 @@ ADVICE = {
         "<b>보강안을 그대로 적용하기 전에 이 건을 먼저 확인</b>하세요."),
     "resolved": ("#187B59",
         "보강안 적용으로 차단됐습니다",
-        "같은 공격을 보강 후에 다시 던졌을 때 차단됐습니다. 아래 '적용된 방어 패턴' 중 어느 것이 "
-        "이 건을 막았는지는 <b>저장하지 않으므로 단정하지 않습니다</b> — 보강안 전체를 기준으로 "
+        "같은 공격을 보강 후에 다시 던졌을 때 차단됐습니다. 어느 방어 패턴이 막았는지는 "
+        "<b>저장하지 않으므로 단정하지 않습니다</b> — 보강안 전체를 기준으로 "
         "시험한 결과이며, 재실행 결과가 같다고 보장하지는 않습니다."),
     "unaffected": ("#5C6C83",
         "보강 전부터 차단돼 있었습니다",
@@ -1585,13 +1607,12 @@ def render_done(run: dict):
     rep = run["report"]
     gated = run.get("gated") or {}
     report_context(run, run["target"])
-    if run.get("privacy_notice"):
-        st.caption(run["privacy_notice"])
     fid = st.session_state.get("finding_id")
     if fid and rep.get("attempts"):
         render_finding_detail(run, rep, fid)
         return
     render_summary(rep)
+    render_scope_note(run)
     render_run_flow(rep, (rep.get("findings_summary") or {}).get("total", 0),
                     (run.get("recon") or {}).get("assets"))
     render_evidence_cards(rep, gated)
@@ -1655,6 +1676,7 @@ def render_conditions(run: dict):
 
 def render_inconclusive(run: dict):
     report_context(run, run["target"])
+    st.caption(SCOPE_NOTICE)
     rep = run.get("report", {})
     render_failure(
         "🔍", "진단 불가 — 보호할 비밀값이 없습니다",
