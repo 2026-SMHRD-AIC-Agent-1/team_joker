@@ -1,5 +1,4 @@
 # Chat Shield
-깃 테스트를 위해 성환씨가 수정합니다
 > 제품명 **Chat Shield** · 한국어 탐지 모델 **JOKER-KO** · 팀/엔진 코드명 **JOKER**(패키지 `joker`).
 > 화면·문서·발표는 모두 "Chat Shield" 로 표기한다.
 
