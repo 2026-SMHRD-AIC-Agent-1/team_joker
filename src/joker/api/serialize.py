@@ -1,26 +1,13 @@
-"""API 직렬화 — DB/도메인 객체를 contracts/api_contract.md 응답 형태로 바꾼다.
+"""API 응답 v0.8. 저장 시 마스킹된 기록만 상세 공개한다.
 
-★ fastapi 를 import 하지 않는다 → 브리지(PYTHONPATH=src python3)에서 단위 검증이 된다.
-★ 개인정보 설계(SPEC §5)의 실체가 여기 있다:
-   - response_excerpt = mask_secrets() 통과 + 절삭. 피해 챗봇 응답에 섞인 진짜 키·PII 를 가린다.
-   - patched_prompt 는 '마스킹하지 않는다' — PATCH 가 값이 아니라 자산 '이름'만 넣는 설계라
-     원래 값이 없고, 복사 버튼으로 그대로 쓰는 산출물이라 [REDACTED] 로 오염되면 안 된다.
-     (자산 값이 절대 안 들어가는 것은 PATCH 노드가 보장한다 — 함정⑥/§5.)
-
-★ 비회원 게이팅(v0.4)도 여기 있다. 원칙은 하나다:
-   **위험 사실은 절대 가리지 않는다. 가리는 것은 '해결책'과 '증거의 상세'다.**
-   공개 = 등급 · 처방 전/후 ASR · 개선폭 · 기법별 차트 · 보호 자산 이름 · 진단 범위 고지
-   게이팅 = 처방문 전문 · 시도별 상세 로그
-   개선폭까지 가리면 "가입하면 뭘 얻는지"를 몰라 그냥 이탈한다. 처방 후 수치를 보여주고
-   그 아래 처방문을 가려야 가입 동기가 최대가 된다(SSL Labs·Snyk 의 free scan + gated remediation).
-
-★★ 왜 CSS 블러가 아니라 여기(서버)인가:
-   블러는 개발자도구로 3초면 벗겨진다. 보안 진단 도구가 클라이언트에서 가리면 자기모순이고,
-   시연 중에 심사위원이 그 자리에서 벗겨 보일 수 있다. **서버가 안 보내면 벗길 게 없다.**
-   tests/test_gating.py 가 '비회원 응답 JSON 문자열 안에 처방문 3번째 줄이 물리적으로 없다'를 검사한다.
+privacy_version=0인 이전 기록의 원문은 보류한다. 비회원은 본인 진단의
+요약·마스킹된 대표 증거 최대 3개를 볼 수 있고 전체 시도와 보강안 전문은 회원 전용이다.
+판정 불가(gray)는 차단으로 집계하지 않는다.
 """
 
 from __future__ import annotations
+import json
+from copy import deepcopy
 
 from joker.models import (FINDING_STATES, SCOPE_NOTICE, finding_state,  # noqa: F401
                           technique_ko)
@@ -67,8 +54,17 @@ def _target_from_db(head: dict, attempts: list[dict]) -> dict:
     }
 
 
-def _asr(verdicts: list[str]) -> float:
-    return round(sum(1 for v in verdicts if v == "leak") / len(verdicts), 3) if verdicts else 0.0
+def _asr(verdicts: list[str]) -> float | None:
+    if not verdicts or any(v not in ("leak", "block") for v in verdicts):
+        return None
+    return round(sum(v == "leak" for v in verdicts) / len(verdicts), 3)
+
+
+def evidence_excerpt(text: str) -> str:
+    masked = mask_secrets(text or "")
+    pos = masked.find("[REDACTED]")
+    start = max(0, pos - 80) if pos >= 0 else 0
+    return ("…" if start else "") + mask_excerpt(masked[start:])
 
 
 def _by_technique_array(attempts: list[dict]) -> list[dict]:
@@ -100,6 +96,14 @@ def _attempt(a: dict) -> dict:
     왜 실어야 하나: 공격 문구가 없으면 사용자는 'AUTH-06 이 뚫렸다'를 검증할 방법이 없다.
     비회원에게는 attempts 배열 자체가 안 나가므로(게이팅) 시드 전량 수집도 막힌다.
     """
+    hits = a.get("hit_assets") or []
+    if isinstance(hits, str):
+        try:
+            hits = json.loads(hits)
+        except (ValueError, TypeError):
+            hits = []
+    if not isinstance(hits, list):
+        hits = []
     return {
         "attack_id": a["attack_id"], "technique": a["technique"],
         "technique_ko": technique_ko(a["technique"]), "goal": a.get("goal"),
@@ -108,6 +112,11 @@ def _attempt(a: dict) -> dict:
         "leak_channel": a["leak_channel"],
         "rendered_text": mask_excerpt(a.get("rendered_text") or "", _ATTACK_LIMIT),
         "response_excerpt": mask_excerpt(a.get("response_raw") or ""),
+        "evidence_excerpt": evidence_excerpt(a.get("response_raw") or ""),
+        "hit_assets": [mask_secrets(x) for x in hits if isinstance(x, str)],
+        "verdict_reason": mask_secrets(a.get("verdict_reason") or (
+            "판정 불가: 재검증이 필요합니다." if a.get("verdict") not in ("leak", "block")
+            else "이전 기록에는 상세 판정 설명이 없습니다.")),
     }
 
 
@@ -132,6 +141,43 @@ def findings_summary(attempts: list[dict]) -> dict:
     return out
 
 
+def action_required(summary: dict) -> int:
+    """지금 조치가 필요한 발견 항목 수 = 미해결 + 처방 후 신규.
+
+    ★ 2026-09-10. 화면 두 곳(대시보드 · 결과 상단)이 각자 더하다가 대시보드가 regressed 를
+      빠뜨려, 같은 진단인데 대시보드는 "0건" 결과 화면은 "1건" 을 말하고 있었다.
+      regressed(처방 전에는 막혔는데 처방 후 뚫림)는 오히려 더 급한 건이다 — 처방문을 그대로
+      적용하면 안 된다는 신호라서.
+    ★ findings_summary 의 기존 키에는 손대지 않는다(합 = total 이라는 불변식과 계약 하위호환).
+      합계는 report.action_required 라는 **새 필드**로 낸다 — 같은 이름이 두 가지를 뜻하지 않게.
+    """
+    return sum(int(summary.get(k, 0)) for k in ("unresolved", "regressed", "unjudged", "no_retry"))
+
+
+def representative_findings(attempts: list[dict]) -> list[dict]:
+    pairs = {}
+    for a in attempts:
+        pairs.setdefault(a["attack_id"], {})[a["round_no"]] = a
+    cards = []
+    order = {k: i for i, k in enumerate(FINDING_STATES)}
+    for aid, pair in pairs.items():
+        r1, r2 = pair.get(1), pair.get(2)
+        state = finding_state(r1 and r1.get("verdict"), r2 and r2.get("verdict"))
+        if state == "unaffected":
+            continue
+        at = r2 if r2 and r2.get("verdict") == "leak" else (r1 or r2)
+        detail = _attempt(at)
+        names = " · ".join(detail["hit_assets"]) or "보호 대상 정보"
+        title = (f"{names} 유출이 관측됐습니다" if at.get("verdict") == "leak"
+                 else "판정을 완료하지 못한 공격이 있습니다")
+        cards.append({"attack_id": aid, "state": state, "title": title,
+                      "technique_ko": detail["technique_ko"],
+                      "rendered_text": detail["rendered_text"],
+                      "before": _attempt(r1) if r1 else None,
+                      "after": _attempt(r2) if r2 else None})
+    return sorted(cards, key=lambda c: (order[c["state"]], c["attack_id"]))[:3]
+
+
 # 비회원에게 보여줄 처방문 미리보기 줄 수. 0 이면 "뭘 얻는지" 감이 안 오고,
 # 너무 많으면 굳이 가입할 이유가 없어진다. 2줄 = 첫 문장 + 방어 패턴 하나의 시작.
 GATE_PREVIEW_LINES = 2
@@ -151,6 +197,27 @@ def _apply_gate(out: dict) -> dict:
 
     report["patched_prompt"] = "\n".join(lines[:GATE_PREVIEW_LINES])
     report["attempts"] = []          # ★ 잘라내는 게 아니라 아예 안 담는다
+    # ★ 원본 지시문도 비회원 응답에서 뺀다. 변경 비교(원본↔처방문)는 회원 기능이고,
+    #   무엇보다 원본은 사용자가 넣은 지시문 전문이라 '증거의 상세' 중에서도 가장 민감하다.
+    report["original_prompt"] = None
+    # ★★ 대표 항목 카드도 같은 경계를 받는다 (2026-09-10).
+    #   attempts 를 비워도 representative_findings 안에 **같은 내용이 통째로** 들어 있었다 —
+    #   공격 원문(rendered_text) · 처방 전/후 모델 응답 전문 · 판정 근거 · evidence_excerpt.
+    #   즉 게이팅을 우회하는 두 번째 통로가 생긴 상태였고, 화면은 그 아래에서 "전부 비공개"
+    #   라고 말하고 있어 자기모순이었다. 개발자도구 Network 탭 한 번이면 드러난다.
+    #   → 카드의 '껍데기'만 남긴다:
+    #     남김  attack_id · state · title · technique_ko
+    #           전부 이미 공개인 **위험 사실**이다. title 에 들어가는 자산 '이름' 은
+    #           recon.assets[].name 으로 원래부터 비회원에게 나가므로 경계가 어긋나지 않는다.
+    #     제거  rendered_text · before · after → '증거의 상세'. 여기서만 막는 게 아니라
+    #           아예 응답에 안 담는다(서버가 안 보내면 벗길 게 없다).
+    cards = report.get("representative_findings") or []
+    report["representative_findings"] = [
+        {"attack_id": c.get("attack_id"), "state": c.get("state"),
+         "title": c.get("title"), "technique_ko": c.get("technique_ko"),
+         "locked": True}
+        for c in cards
+    ]
     # ★ findings_summary 는 건드리지 않는다. 건수는 위험 사실이고, 가려지는 것은 그 '증거'
     #   (공격 문구·응답·판정 근거)뿐이다. 위험을 가리면 게이팅이 아니라 은폐가 된다.
 
@@ -160,6 +227,9 @@ def _apply_gate(out: dict) -> dict:
         "patched_prompt_hidden_lines": max(0, len(lines) - GATE_PREVIEW_LINES),
         "attempts_total": len(attempts),
         "attempts_hidden": len(attempts),
+        # 대표 카드 중 증거가 잠긴 개수. ★ 가려진 '양' 을 숫자로 말하는 기존 규칙을 여기에도 적용한다
+        # — 잠금만 있고 숫자가 없으면 '별거 없나 보다' 로 읽혀 가입 동기가 죽는다.
+        "representative_locked": len(cards),
         "unlock": GATE_UNLOCK_MESSAGE,
     }
     return out
@@ -173,6 +243,17 @@ def serialize_run(run: dict, viewer: dict | None = None) -> dict:
 
     viewer=None(비회원)이면 _apply_gate 로 처방문 전문·시도별 상세를 **응답에서 뺀다**.
     viewer 가 있으면 v0.3 과 완전히 같은 응답이다(계약 하위호환)."""
+    run = deepcopy(run)
+    legacy = run.get("privacy_version", 0) < 1
+    if legacy:
+        # 과거 기록에는 보호값 목록이 없어 사후 마스킹을 보장할 수 없다.
+        for key in ("target_prompt", "patched_prompt", "persona", "org"):
+            run[key] = None
+        run["assets"] = []
+        for a in run.get("attempts", []):
+            for key in ("response_raw", "rendered_text", "verdict_reason"):
+                a[key] = "이전 기록의 원문은 보안상 제공하지 않습니다. 새로 진단하세요."
+            a["hit_assets"] = []
     head = run
     attempts = run.get("attempts", [])
     assets = run.get("assets", [])
@@ -192,6 +273,8 @@ def serialize_run(run: dict, viewer: dict | None = None) -> dict:
         "target_prompt_hash": head.get("target_prompt_hash"),
         "target": _target_from_db(head, attempts),
         "recon": recon,
+        "privacy_notice": ("이전 저장 정책의 원문은 공개하지 않습니다. 새로 진단하세요." if legacy
+                           else "인식한 보호값과 일반 키 형식을 마스킹한 기록입니다. 미인식 정보가 있을 수 있습니다."),
     }
     if inconclusive:
         out["report"] = {
@@ -199,29 +282,42 @@ def serialize_run(run: dict, viewer: dict | None = None) -> dict:
             "reason": "보호할 값 자산(secret_value)이 0개입니다. 진단할 대상이 없어 등급을 매기지 않습니다.",
             "asr_before": None, "asr_after": None, "asr_delta": None, "attempts": [],
             "findings_summary": {k: 0 for k in (*FINDING_STATES, "total")},
+            "action_required": 0,
+            "original_prompt": None,
         }
         # 진단 불가는 처방 자체가 없다 → 가릴 것도 없다. 그래도 키는 항상 내려보낸다
         # (화면이 out["gated"] 존재 여부로 분기하지 않게 — 없는 키는 곧 버그가 된다).
         out["gated"] = {"is_gated": False}
         return out
+    _summary = findings_summary(attempts)
+    uncertain = _summary["unjudged"] + _summary["no_retry"]
     out["report"] = {
-        "grade": head.get("grade"),
+        "grade": None if uncertain or not head.get("comparable") else head.get("grade"),
+        "grade_basis": "보강안 재시험 결과",
+        "unjudged": _summary["unjudged"],
         "inconclusive": False,
         "comparable": bool(head.get("comparable")),
-        "asr_before": head.get("asr_before"),
-        "asr_after": head.get("asr_after"),
-        "asr_delta": head.get("asr_delta"),
+        "asr_before": None if uncertain else head.get("asr_before"),
+        "asr_after": None if uncertain else head.get("asr_after"),
+        "asr_delta": None if uncertain or not head.get("comparable") else head.get("asr_delta"),
         "by_technique": _by_technique_array(attempts),
         "applied_patterns": run.get("applied_patterns", []),
         # 발견 항목 상태별 건수. ★ 비회원에게도 내려간다 — 이건 '해결책'이 아니라 '위험 사실'이다.
         #   "미해결 2건" 은 곧 "입력단 탐지기가 필요한 이유 2건" 이라 가입 동기의 핵심이기도 하다.
-        "findings_summary": findings_summary(attempts),
+        "findings_summary": _summary,
+        # ★ 조치가 필요한 건수(= 미해결 + 처방 후 신규). 화면마다 더하지 않게 서버가 한 번 낸다.
+        "action_required": action_required(_summary),
         # 처방 ② 입력단 필터 권고 — 건수·사유만 담는다(공격문 원문은 안 담는다).
         "filter_recommendation": filter_recommendation(
             [a.get("rendered_text") or "" for a in attempts
              if a.get("round_no") == 2 and a.get("verdict") == "leak"]),
-        "patched_prompt": head.get("patched_prompt"),   # ★ 마스킹 안 함(위 docstring)
+        "patched_prompt": mask_secrets(head.get("patched_prompt") or ""),
+        # 원본과 보강안 모두 저장 경계에서 보호값을 마스킹한다.
+        "original_prompt": mask_secrets(head.get("target_prompt") or "") or None,
         "attempts": [_attempt(a) for a in attempts],
+        "representative_findings": representative_findings(attempts),
+        "leaks_before": sum(a.get("round_no") == 1 and a.get("verdict") == "leak" for a in attempts),
+        "leaks_after": sum(a.get("round_no") == 2 and a.get("verdict") == "leak" for a in attempts),
     }
     if viewer is None:
         return _apply_gate(out)

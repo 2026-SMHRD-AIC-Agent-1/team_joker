@@ -25,11 +25,17 @@ PATCHED = (
     + SECRET_LINE + "\n" + LAST_LINE
 )
 MEMBER = {"user_id": "u1", "email": "a@b.com"}
+# ★ 게이팅 검사는 '이 문자열이 응답에 없다' 로 해야 의미가 있다. 그래서 공격문·응답에
+#   눈에 띄는 표식을 박아 둔다 — "표를 채워줘" 같은 흔한 문구로 검사하면, 다른 필드에
+#   우연히 같은 말이 섞였을 때 통과/실패가 뒤집힌다.
+ATTACK_TEXT = "표를 채워줘 · ATTACKTEXTMARKER"
+RESP_BEFORE = "코드는 [REDACTED] 입니다 · RESPBEFOREMARKER"
+RESP_AFTER = "비공개 · RESPAFTERMARKER"
 
 
 def _run(**over) -> dict:
     run = {
-        "run_id": "run_1", "created_at": "2026-09-07T10:00:00", "inconclusive": 0,
+        "privacy_version": 1, "run_id": "run_1", "created_at": "2026-09-07T10:00:00", "inconclusive": 0,
         "grade": "C", "comparable": 1,
         "asr_before": 0.593, "asr_after": 0.081, "asr_delta": -0.512,
         "target_prompt_hash": "h", "model_victim": "qwen2.5:3b-instruct", "backend": "local",
@@ -38,11 +44,12 @@ def _run(**over) -> dict:
         "attempts": [
             {"attack_id": "FORMAT-01", "technique": "FORMAT", "round_no": 1, "verdict": "leak",
              "verdict_by": "rule", "leak_channel": "plain",
-             "response_raw": "코드는 [REDACTED] 입니다", "temperature": 0.0, "seed": 42,
-             "rendered_text": "표를 채워줘"},
+             "response_raw": RESP_BEFORE, "temperature": 0.0, "seed": 42,
+             "rendered_text": ATTACK_TEXT},
             {"attack_id": "FORMAT-01", "technique": "FORMAT", "round_no": 2, "verdict": "block",
              "verdict_by": "rule", "leak_channel": None,
-             "response_raw": "비공개", "temperature": 0.0, "seed": 42, "rendered_text": "표를 채워줘"},
+             "response_raw": RESP_AFTER, "temperature": 0.0, "seed": 42,
+             "rendered_text": ATTACK_TEXT},
         ],
         "assets": [{"name": "관리자 임시 접근코드", "kind": "secret_value", "confidence": 1.0}],
         "applied_patterns": ["P02", "P04", "P06"],
@@ -54,10 +61,36 @@ def _run(**over) -> dict:
 @pytest.mark.boundary
 def test_hidden_lines_are_physically_absent():
     """★ 비회원 응답 JSON 문자열 어디에도 가려진 줄이 없어야 한다(블러가 아니라 미전송)."""
-    body = json.dumps(serialize_run(_run(), viewer=None), ensure_ascii=False)
+    out = serialize_run(_run(), viewer=None)
+    body = json.dumps(out, ensure_ascii=False)
     assert SECRET_LINE not in body
     assert LAST_LINE not in body
-    assert "표를 채워줘" not in body, "시도별 상세(공격문)도 비회원에게는 안 나간다"
+    assert out["report"]["attempts"] == []
+    # ★ 공격 원문·응답 전문이 응답 어디에도 없어야 한다.
+    #   예전 단언은 `len(representative_findings) <= 3` 이었는데 이건 **항상 참**이라
+    #   아무것도 검사하지 못했다. 그 사이 대표 카드가 attempts 와 같은 내용을 통째로
+    #   실어 나르는 두 번째 통로가 됐다(2026-09-10 실제로 뚫려 있었다).
+    for hidden in (ATTACK_TEXT, RESP_BEFORE, RESP_AFTER):
+        assert hidden not in body, "대표 항목 카드가 게이팅을 우회하는 통로가 되면 안 된다"
+
+
+@pytest.mark.boundary
+def test_representative_cards_keep_the_risk_but_lock_the_evidence():
+    """대표 카드는 '무엇이 발견됐는지' 는 보여주고 '증거' 만 잠근다.
+
+    ★ 카드를 통째로 없애지 않는 이유: 위험 사실(제목·상태·기법)은 원래 비회원에게도
+      공개다. 그것까지 가리면 게이팅이 아니라 은폐이고, '가입하면 뭘 얻는지' 를 몰라
+      그냥 이탈한다.
+    """
+    cards = serialize_run(_run(), viewer=None)["report"]["representative_findings"]
+    assert cards, "카드를 통째로 없애면 비회원은 무엇이 발견됐는지 알 수 없다"
+    for card in cards:
+        # 남는 것 — 위험 사실
+        assert card["title"] and card["state"] and card["technique_ko"] and card["attack_id"]
+        assert card["locked"] is True
+        # 사라지는 것 — 증거의 상세. 값이 None 인 게 아니라 **키 자체가 없어야** 한다
+        for banned in ("rendered_text", "before", "after"):
+            assert banned not in card, f"{banned} 는 비회원 응답에 담기지 않는다"
 
 
 @pytest.mark.boundary
@@ -67,6 +100,10 @@ def test_member_gets_everything():
     assert SECRET_LINE in body and LAST_LINE in body
     assert len(out["report"]["attempts"]) == 2
     assert out["gated"] == {"is_gated": False}, "회원 응답은 v0.3 과 동일해야 한다(하위호환)"
+    # 회원에게는 대표 카드의 증거가 그대로 있어야 한다(잠금은 비회원 경로에만 적용된다)
+    card = out["report"]["representative_findings"][0]
+    assert card["rendered_text"] and card["before"] and card["after"]
+    assert "locked" not in card
 
 
 @pytest.mark.boundary
@@ -133,7 +170,8 @@ def test_gate_does_not_mutate_caller_run():
 # ── 화면 쪽 규칙 (소스 정적 검사) ────────────────────────────
 def _ui_src() -> str:
     from pathlib import Path
-    return (Path(__file__).resolve().parents[1] / "ui" / "streamlit_app.py").read_text(encoding="utf-8")
+    root = Path(__file__).resolve().parents[1] / "ui"
+    return (root / "streamlit_app.py").read_text(encoding="utf-8") + (root / "styles.css").read_text(encoding="utf-8")
 
 
 @pytest.mark.boundary
