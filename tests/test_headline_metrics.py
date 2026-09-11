@@ -50,3 +50,13 @@ def test_ui_reads_the_same_path():
     src = (REPO / "ui" / "streamlit_app.py").read_text(encoding="utf-8")
     assert "headline_metrics.json" in src, "UI 가 다른 경로를 보면 화면과 근거가 어긋난다"
     assert "import joker" not in src and "from joker" not in src, "화면은 엔진을 import 하지 않는다"
+
+
+def test_asr_is_paired_with_benign_pass():
+    """ASR 개선은 '거절을 늘려서'로도 똑같이 설명된다. 같은 보강문의 정상 업무 통과율 없이
+    ASR 만 화면에 올리면 개선폭이 부풀려진다(scripts/benign_rerun.py 가 그 짝을 만든다)."""
+    by_key = {m["key"]: m for m in _load()["metrics"]}
+    if "asr" in by_key:
+        assert "benign_pass" in by_key, "ASR 을 올리려면 정상 업무 통과율(benign_pass)도 함께 올린다"
+        assert by_key["benign_pass"]["source"].startswith("docs/benign_rerun_")
+        assert (REPO / by_key["benign_pass"]["source"]).exists(), "근거 문서가 없는 수치는 올리지 않는다"
