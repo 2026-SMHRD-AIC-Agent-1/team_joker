@@ -183,6 +183,24 @@ pre code{ font-size:.82rem !important; line-height:1.85 !important; color:var(--
 .stat .v{ font-size:1.6rem; font-weight:800; color:var(--ink); letter-spacing:-.03em;
           font-variant-numeric:tabular-nums; margin-top:6px; line-height:1.15; }
 .stat .s{ font-size:.78rem; color:var(--muted2); margin-top:4px; line-height:1.55; }
+/* 이 도구의 검증 근거 — 카드 3개. 값은 headline_metrics.json 에서만 온다. */
+.ev{ display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:12px; }
+.ev-card{ border:1px solid var(--line); border-radius:var(--r-m); background:var(--surface);
+          padding:14px 18px; display:flex; flex-direction:column; gap:12px; }
+.ev-t{ font-size:.75rem; font-weight:700; color:var(--brand-2); letter-spacing:.01em; }
+.ev-m + .ev-m{ border-top:1px solid var(--line-2); padding-top:10px; }
+.ev-l{ font-size:.78rem; color:var(--muted); font-weight:600; }
+.ev-v{ font-size:1.35rem; font-weight:800; color:var(--ink); letter-spacing:-.02em;
+       margin-top:4px; line-height:1.2; }
+.ev-d{ font-size:.76rem; color:var(--muted2); margin-top:4px; line-height:1.55; }
+.ev-row{ border-bottom:1px solid var(--line-2); padding:12px 0; }
+.ev-row:first-child{ padding-top:0; }
+.ev-row-h{ display:flex; justify-content:space-between; gap:12px; align-items:baseline; }
+.ev-row-h b{ color:var(--ink); font-size:.92rem; }
+.ev-row-v{ font-weight:800; color:var(--ink); white-space:nowrap; }
+.ev-row-d{ font-size:.82rem; color:var(--ink2); margin-top:2px; line-height:1.6; }
+.ev-row-c{ font-size:.78rem; color:var(--muted2); margin-top:2px; line-height:1.6; }
+.ev-row-c span{ display:inline-block; min-width:4.6em; font-weight:700; color:var(--muted); }
 .meta{ border:1px solid var(--line); border-radius:var(--r-m); background:var(--surface);
        overflow:hidden; }
 .meta .row{ display:flex; justify-content:space-between; gap:12px; padding:10px 16px;
@@ -530,7 +548,8 @@ html body .stApp [class*="st-key-ex_"] button [data-testid="stMarkdownContainer"
   .intro-g{ grid-template-columns:repeat(3,1fr) !important; }
 }
 @media (max-width:900px){
-  .stat, .fstrip, .rpt, .intro-g{ grid-template-columns:1fr !important; }
+  .stat, .fstrip, .rpt, .intro-g, .ev{ grid-template-columns:1fr !important; }
+  .flow.in-hero{ grid-template-columns:repeat(2,1fr) !important; }
   .tb-head, .tb-row{ grid-template-columns:80px 1fr 38px 12px 1fr 58px !important; }
   .h-page{ font-size:1.3rem; } .h-sec{ font-size:1.05rem; }
   /* ★ 사이드바를 빼면 768px 화면의 실제 콘텐츠 폭은 ~500px 다. 비율로 잡은 Streamlit
@@ -598,6 +617,20 @@ html body .stApp [class*="st-key-ex_"] button [data-testid="stMarkdownContainer"
 .flow-step b {display:block;font-size:.9rem;color:var(--ink);letter-spacing:-.01em;}
 .flow-step .d {display:block;font-size:.78rem;color:var(--muted);margin-top:4px;
   line-height:1.55;font-variant-numeric:tabular-nums;}
+/* 0911 D: 히어로 카드 안의 띠 — 테두리는 카드가 가진다. */
+.flow.in-hero {margin:24px 0 0;border-radius:var(--r-s);}
+.flow.in-hero .flow-step {background:var(--soft);padding:12px 14px;}
+.flow-note {font-size:.8rem;color:var(--muted);line-height:1.6;margin-top:8px;}
+.flow-note b {color:var(--ink2);}
+/* 대표 카드 안의 접기(판정 근거 · 권고). expander 안이라 HTML <details> 를 쓴다. */
+details.fold {margin-top:14px;border-top:1px solid var(--line-2);padding-top:10px;}
+details.fold summary {cursor:pointer;font-size:.82rem;font-weight:700;color:var(--ink2);}
+details.fold[open] summary {margin-bottom:8px;}
+.fold-row {font-size:.8rem;color:var(--muted);line-height:1.65;margin:4px 0;}
+details.fold > .fold-row, details.fold > .report-meta {padding:0 16px;}
+details.fold > :last-child {padding-bottom:12px;}
+.fold-row span {display:inline-block;min-width:4.2em;font-weight:700;color:var(--ink2);}
+.rel-card .layers-note.in-card {margin:14px 0 0;}
 /* 숫자 판의 화살표 칸 — 값이 아니라 '두 수를 잇는 기호' 라 폭을 좁게 잡는다 */
 /* 보강 전 → 후 는 붙여서 한 쌍으로 읽히게 하고, 조치 필요는 성격이 다른 수라
    실선으로 끊어 오른쪽 끝으로 민다 */
@@ -625,8 +658,22 @@ html body .stApp [class*="st-key-ex_"] button [data-testid="stMarkdownContainer"
      두 기능은 병렬이고, 이어 주는 것은 호출이 아니라 **권고**다.
    ★ 번호(①②)를 쓰지 않는다. 프로젝트에 '1층/2층' 과 '처방①/②' 라는 서로 반대인 번호가
      이미 둘 있어서, 세 번째를 만들면 아무도 못 따라온다. 이름으로만 부른다. */
-.relation {display:flex;align-items:stretch;gap:0;border:1px solid var(--line);
-  border-radius:var(--r-m);background:var(--soft);padding:18px 20px;margin:4px 0 10px;}
+.rel-card {border:1px solid var(--line);border-radius:var(--r-m);background:var(--soft);
+  padding:18px 20px;margin:4px 0 10px;}
+.relation {display:flex;align-items:stretch;gap:0;}
+/* 관계도 아래 — 같은 공격 50건 × 방어 구성 4칸(값은 headline_metrics.json). */
+.ladder {margin-top:16px;padding-top:14px;border-top:1px solid var(--line-2);}
+.lad-h {font-size:.78rem;color:var(--muted);line-height:1.6;margin-bottom:10px;}
+.lad-h b {color:var(--ink2);}
+.lad-row {display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
+.lad-c {background:var(--surface);border:1px solid var(--line);border-radius:var(--r-s);
+  padding:10px 12px;min-width:0;}
+.lad-c b {display:block;font-size:1.15rem;font-weight:800;color:var(--ink);margin-top:2px;}
+.lad-l {font-size:.74rem;font-weight:700;color:var(--muted);}
+.lad-d {display:block;font-size:.72rem;color:var(--muted2);margin-top:2px;line-height:1.5;}
+.lad-c.lad-best {border-color:var(--ok);}
+.lad-c.lad-best b {color:var(--ok);}
+.lad-n {font-size:.78rem;color:var(--muted2);margin-top:8px;line-height:1.6;}
 .rel-box {flex:1 1 0;background:var(--surface);border:1px solid var(--line);
   border-radius:var(--r-s);padding:14px 16px;min-width:0;}
 .rel-box .tag {display:inline-block;font-size:.68rem;font-weight:750;letter-spacing:.02em;
@@ -645,6 +692,7 @@ html body .stApp [class*="st-key-ex_"] button [data-testid="stMarkdownContainer"
 .layers-note b {color:var(--ink);}
 @media(max-width:900px){
   .relation {flex-direction:column;gap:4px;}
+  .lad-row {grid-template-columns:repeat(2,1fr);}
   .rel-link {flex:none;padding:8px 0;}
   .rel-link i {transform:rotate(90deg);}
 }

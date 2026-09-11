@@ -48,9 +48,10 @@ GRADE_COLOR = {"A": "#187B59", "B": "#285DDD", "C": "#956000", "D": "#AC541F", "
 
 # 작업 화면의 좌측 내비. '＋ 새 진단' 은 버튼으로 따로 두므로 여기 넣지 않는다
 # (같은 뜻의 메뉴가 둘이면 사용자는 무엇이 다른지 찾느라 멈춘다).
-NAV = [("dashboard", "대시보드"), ("history", "진단 목록"),
-       ("detect", "JOKER-KO 탐지기"), ("settings", "설정")]
-APP_VIEWS = {k for k, _ in NAV} | {"diagnose"}
+# ★ 0911 D: '진단 목록' 을 메뉴에서 뺐다 — 대시보드 '최근 진단' 과 같은 표(_scan_table)였고 5행/30행 차이뿐.
+#   목록 화면(history)은 남기고, 대시보드 표 아래 '전체 N건 보기' 로 들어간다.
+NAV = [("dashboard", "대시보드"), ("detect", "JOKER-KO 탐지기"), ("settings", "설정")]
+APP_VIEWS = {k for k, _ in NAV} | {"diagnose", "history"}
 # 계정이 있어야 내용이 생기는 화면.
 ACCOUNT_VIEWS = {"dashboard", "history"}
 
@@ -195,7 +196,8 @@ def api_base() -> str:
     return st.session_state.get("api_base", DEFAULT_API)
 
 
-@st.cache_data(show_spinner=False)
+# ★ ttl 60초: TTL 이 없으면 json 을 고쳐도 서버를 재시작하기 전까지 옛 수치가 화면에 남는다(0911 실제로 겪음).
+@st.cache_data(ttl=60, show_spinner=False)
 def load_metrics() -> dict:
     """실측 수치 로드. 파일이 없으면 빈 dict — 숫자를 지어내지 않는다.
     (원본은 data/evidence/headline_metrics.json 하나뿐이다.)"""
@@ -431,8 +433,9 @@ def render_sidebar(base: str):
                 st.rerun()
             st.markdown('<div class="sb-cap">메뉴</div>', unsafe_allow_html=True)
             for key, label in NAV:
+                on = current == key or (key == "dashboard" and current == "history")
                 if st.button(label, key=f"nav_{key}", use_container_width=True,
-                             type="primary" if current == key else "secondary"):
+                             type="primary" if on else "secondary"):
                     go(key)
                     st.rerun()
         else:
@@ -597,6 +600,68 @@ def skeleton(rows: int = 3, height: int = 34):
     """로딩 자리표시. 빈 화면이 잠깐 보였다가 내용이 튀어나오면 제품이 불안정해 보인다."""
     bars = "".join(f'<div class="sk" style="height:{height}px"></div>' for _ in range(rows))
     st.markdown(f'<div class="sk-wrap">{bars}</div>', unsafe_allow_html=True)
+
+
+# ── 이 도구의 검증 근거 ─────────────────────────────────────
+# ★ 카드가 무엇을 '짝지어' 보여주는지만 여기서 정한다. 라벨·값·조건은 전부
+#   headline_metrics.json 에서 key 로 읽는다 — 화면 코드에 수치를 적지 않는다(재측정 때 어긋난다).
+# ★ 공격 성공률(asr)은 반드시 정상 업무 통과율(benign_pass)과 한 카드에 둔다. ASR 만 크게 띄우면
+#   "거절을 늘려서 내린 것 아니냐" 에 답이 없는 화면이 된다(0911 benign_rerun). 그래서 이 카드는
+#   두 key 가 **모두** 있을 때만 그린다(세 번째 값 True). 짝이 빠지면 카드째 뺀다.
+TOOL_EVIDENCE = [
+    ("지시문 보강", ("asr", "benign_pass"), True),
+    ("보강 + 탐지기, 두 층 함께", ("defense_matrix",), False),
+    ("JOKER-KO 탐지기", ("ood_recall", "fpr"), False),
+]
+
+
+@st.dialog("이 도구의 검증 근거", width="large")
+def evidence_dialog():
+    """수치·측정 조건·출처·한계 전체. 대시보드·리포트·설정이 이 대화상자 하나를 연다."""
+    m = load_metrics()
+    if not m.get("metrics"):
+        st.caption("근거 파일을 찾을 수 없습니다.")
+        return
+    st.caption("지금 여러분이 진단한 결과가 아니라, 별도 데이터로 우리가 측정한 이 도구의 검증 "
+               "수치입니다. 조건과 함께 인용하세요.")
+    order = [k for _, keys, _ in TOOL_EVIDENCE for k in keys]
+    rows = sorted(m["metrics"], key=lambda x: order.index(x["key"]) if x["key"] in order else len(order))
+    st.markdown("".join(
+        f'<div class="ev-row"><div class="ev-row-h"><b>{esc(x["label"])}</b>'
+        f'<span class="ev-row-v num">{esc(x["value"])}</span></div>'
+        f'<div class="ev-row-d">{esc(x["detail"])}</div>'
+        f'<div class="ev-row-c"><span>측정 조건</span>{esc(x["condition"])}</div>'
+        f'<div class="ev-row-c"><span>근거</span><code>{esc(x["source"])}</code></div></div>'
+        for x in rows), unsafe_allow_html=True)
+    subsection("한계")
+    st.markdown('<div class="report-meta">' + "<br>".join(
+        "· " + esc(line) for line in m.get("limitations", [])) + '</div>', unsafe_allow_html=True)
+    st.caption(f"갱신 {m.get('updated', '-')} · 원본 `data/evidence/headline_metrics.json`")
+
+
+def render_tool_evidence(key: str):
+    """카드 3개 + '근거 전체 보기'. json 에 없는 key 의 칸은 그리지 않는다(숫자를 지어내지 않는다)."""
+    by_key = {x["key"]: x for x in (load_metrics().get("metrics") or [])}
+    cards = []
+    for title, keys, need_all in TOOL_EVIDENCE:
+        rows = [by_key[k] for k in keys if k in by_key]
+        if not rows or (need_all and len(rows) != len(keys)):
+            continue
+        cards.append(
+            f'<div class="ev-card"><div class="ev-t">{esc(title)}</div>' + "".join(
+                f'<div class="ev-m"><div class="ev-l">{esc(x["label"])}</div>'
+                f'<div class="ev-v num">{esc(x["value"])}</div>'
+                f'<div class="ev-d">{esc(x["detail"])}</div></div>' for x in rows) + '</div>')
+    if not cards:
+        return
+    section("이 도구의 검증 근거",
+            "지금 이 계정의 진단이 아니라, 별도 데이터로 우리가 측정한 값입니다. "
+            "측정 조건·출처·한계는 ‘근거 전체 보기’ 에 있습니다.")
+    st.markdown(f'<div class="ev">{"".join(cards)}</div>', unsafe_allow_html=True)
+    with st.container(key=f"row_ev_{key}"):
+        c1, _ = st.columns([1.2, 3])
+        if c1.button("근거 전체 보기", key=f"ev_{key}", use_container_width=True):
+            evidence_dialog()
 
 
 def toast(message: str, icon: str = "✅"):
@@ -773,7 +838,9 @@ def delta_view(rep: dict) -> tuple:
             "‘보강 후 신규’ 항목을 먼저 확인하세요.")
 
 
-def render_summary(rep: dict):
+def render_summary(rep: dict, flow_html: str = ""):
+    """히어로. ★ 0911 D: 4단계 흐름을 별도 블록이 아니라 이 카드의 아래 띠로 넣는다(flow_html).
+      따로 두면 '보강 전 유출 N건' 판과 '공격 57건' 줄이 붙은 두 덩어리라 숫자가 두 벌로 읽혔다."""
     fs = rep.get("findings_summary") or {}
     total = fs.get("total", 0)
     before = rep.get("leaks_before", fs.get("unresolved", 0) + fs.get("resolved", 0))
@@ -808,7 +875,7 @@ def render_summary(rep: dict):
         f'<div><div class="report-label">조치가 필요한 항목</div>'
         f'<div class="report-number" style="color:{sev("unresolved") if need else sev("resolved")}">'
         f'{need}<small>건</small></div></div>'
-        '</div></div>', unsafe_allow_html=True)
+        f'</div>{flow_html}</div>', unsafe_allow_html=True)
 
 
 def render_scope_note(run: dict):
@@ -831,7 +898,7 @@ def render_scope_note(run: dict):
                     '</div>', unsafe_allow_html=True)
 
 
-def render_run_flow(rep: dict, total: int, assets: list | None):
+def run_flow_html(rep: dict, total: int, assets: list | None) -> str:
     """진단이 실제로 지나온 4단계. **끝난 뒤에도** 보이게 리포트 상단에 둔다.
 
     ★ 팀 검토: "뭐가 어떻게 진행된 건지 모르겠다". 원인은 분량이 아니라 흐름이 화면에서
@@ -840,22 +907,23 @@ def render_run_flow(rep: dict, total: int, assets: list | None):
     ★ 여기 숫자는 전부 응답에 있는 값이다. 진행률·소요 시간처럼 없는 값은 만들지 않는다.
       값이 없으면 칸을 비우지 말고 '—' 로 두고, 있는 것만 말한다.
     ★ 이 줄이 '같은 공격을 두 번 던졌다' 를 말한다. 그래서 위 숫자 판에서 그 문구를 뺐다.
+    ★ 0911 D: 히어로 카드 안의 띠로 옮겼다(블록 1개 감소). 공격 수는 2단계에만 적는다 —
+      4단계에도 적으면 히어로의 '보강 전 유출' 까지 같은 숫자가 세 번 찍혔다.
     """
     patterns = rep.get("applied_patterns") or []
     steps = [
         ("지시문 분석", f"보호 대상 {len(assets)}개" if assets is not None else "지시문에서 지킬 값 식별"),
         ("공격 진단", f"한국어 공격 {total}건" if total else "공격 실행"),
         ("보강안 생성", f"방어 패턴 {len(patterns)}개 조립" if patterns else "방어 문구 조립"),
-        ("재시험", f"같은 공격 {total}건 재생" if total else "같은 공격 재생"),
+        ("재시험", "같은 공격을 그대로 재생"),
     ]
     cells = "".join(
         f'<div class="flow-step"><span class="n">{i}</span>'
         f'<b>{esc(name)}</b><span class="d">{esc(detail)}</span></div>'
         for i, (name, detail) in enumerate(steps, 1))
-    st.markdown(f'<div class="flow">{cells}</div>'
-                '<div class="layers-note"><b>3·4단계가 이 도구의 핵심</b>입니다 — '
-                '고칠 문구를 만든 뒤 <b>같은 공격을 그대로 다시 던집니다</b>.</div>',
-                unsafe_allow_html=True)
+    return (f'<div class="flow in-hero">{cells}</div>'
+            '<div class="flow-note"><b>3·4단계가 이 도구의 핵심</b>입니다 — '
+            '고칠 문구를 만든 뒤 <b>같은 공격을 그대로 다시 던집니다</b>.</div>')
 
 
 def render_evidence_cards(rep: dict, gated: dict | None = None):
@@ -867,7 +935,8 @@ def render_evidence_cards(rep: dict, gated: dict | None = None):
       가린 것뿐이라 **화면이 거짓말을 하게 된다.** 가린 것은 가렸다고 말해야 한다.
     """
     gated = gated or {}
-    section("01 · 발견한 문제", "대표 항목부터 확인하세요. 요청·응답·판정 근거를 한곳에 모았습니다.")
+    section("01 · 발견한 문제", "대표 항목 최대 3개입니다. 요청과 응답을 먼저 보고, 판정 근거는 카드 안에서 "
+            "펼치세요. 모든 시험은 아래 ‘전체 공격 기록 확인’ 에 있습니다.")
     cards = rep.get("representative_findings") or []
     if not cards:
         st.caption("대표 유출·판정 불가 항목이 없습니다. 아래 전체 시험 기록을 확인할 수 있습니다.")
@@ -898,12 +967,19 @@ def render_evidence_cards(rep: dict, gated: dict | None = None):
                             unsafe_allow_html=True)
                 left, right = st.columns(2)
                 with left:
-                    _response_block(card.get("before"), "보강 전")
+                    _response_block(card.get("before"), "보강 전", verdict=False)
                 with right:
-                    _response_block(card.get("after"), "보강 후")
+                    _response_block(card.get("after"), "보강 후", verdict=False)
+            # ★ 0911 D: 판정 근거 2줄과 이 항목의 권고는 카드 안 접기로 모은다. 기본으로 보이는 것은
+            #   요청과 두 응답(=증거)이다. '단정하지 않습니다' 같은 문장은 지우지 않고 여기로 옮겼다.
+            #   expander 안에 expander 를 못 넣으므로 HTML <details> 를 쓴다(스크립트 없음·서버 데이터만).
             _, advice_title, advice_body = ADVICE[card["state"]]
-            st.markdown(f'<div class="evidence-label">이 항목의 권고 조치</div>'
-                        f'<div class="report-meta">{advice_body}</div>', unsafe_allow_html=True)
+            why = "" if locked else "".join(
+                f'<div class="fold-row"><span>{lbl}</span>{_verdict_line(r)}</div>'
+                for lbl, r in (("보강 전", card.get("before")), ("보강 후", card.get("after"))) if r)
+            st.markdown(f'<details class="fold"><summary>{"판정 근거 · " if why else ""}이 항목의 권고 조치'
+                        f'</summary>{why}<div class="report-meta">{advice_body}</div></details>',
+                        unsafe_allow_html=True)
     if gated.get("is_gated") and gated.get("representative_locked"):
         # ★ 잠금 안내는 이 섹션에 하나만 둔다. 카드마다 붙이면 같은 CTA 가 한 화면에 세 번 반복된다.
         n = f'{gated["representative_locked"]}건'
@@ -911,7 +987,7 @@ def render_evidence_cards(rep: dict, gated: dict | None = None):
                     gated.get("unlock", ""), key="evidence", decoy="attempts")
         return
     # 마스킹 고지는 '이 결과의 범위와 한계' 가 맡는다 — 한 화면에서 두 번 말하지 않는다.
-    st.caption("최대 3개 대표 항목입니다. 모든 시험은 아래 ‘전체 공격 기록 확인’ 에 있습니다.")
+    # ★ 0911 D: '최대 3개 대표 항목…' 캡션은 01 제목 설명으로 옮겼다(같은 말을 블록 하나 더 써서 했다).
 
 
 def _technique_bars(bt: list) -> str:
@@ -961,14 +1037,19 @@ def report_context(run: dict, t: dict):
     breadcrumb(["진단 목록", run.get("run_id") or "", *(
         [st.session_state["finding_id"]] if st.session_state.get("finding_id") else [])])
     logged_in = bool(st.session_state.get("token"))
-    acts = page_header("진단 리포트", desc, actions=2 if logged_in else 1)
+    acts = page_header("진단 리포트", desc, actions=3 if logged_in else 2)
     with acts[0]:
         if st.button("＋ 새 진단", key="rpt_new", use_container_width=True):
             reset_run()
             st.rerun()
+    # ★ 이 도구 자체의 검증 수치로 가는 길. 본문에 카드를 펼치지 않는 이유: 이 진단의 숫자와
+    #   두 벌로 읽힌다. 공개 수치라 비회원에게도 연다(게이팅 대상 아님).
+    with acts[1]:
+        if st.button("검증 근거", key="rpt_ev", use_container_width=True):
+            evidence_dialog()
     # 위험한 동작은 대상 옆에 둔다 — 목록 화면 구석의 삭제 폼보다 여기가 맞다(본인 것만 지워진다).
     if logged_in:
-        with acts[1]:
+        with acts[2]:
             with st.popover("삭제", use_container_width=True):
                 st.caption("이 진단과 공격 로그·자산·패턴이 함께 영구 삭제됩니다. 되돌릴 수 없습니다.")
                 if st.button("영구 삭제", type="primary", key="rpt_del", use_container_width=True):
@@ -1222,6 +1303,13 @@ def patch_dialog(patched: str):
 def render_prescription(rep: dict, gated: dict):
     section("보강안과 변경 내용",
             "두 가지입니다 — 지시문을 고치고, 입력단에 탐지기를 답니다.")
+    # ★ 0911 D: '정상 질문으로 재검증' 권고를 여기 맨 위로 옮겼다. 수치는 headline_metrics.json 에서만.
+    bp = next((x for x in (load_metrics().get("metrics") or []) if x.get("key") == "benign_pass"), None)
+    st.markdown(
+        '<div class="notice" style="margin-bottom:12px"><b>적용 전에 별도 공격과 정상 질문으로 재검증하세요.</b> 같은 공격의 개선만으로 '
+        '일반화하지 마세요. 정상 업무까지 거절하지 않는지도 확인해야 합니다.'
+        + (f'<br>이 도구의 검증(별도 데이터)에서도 보강문을 붙이자 정상 업무 통과율이 <b>{esc(bp["value"])}</b>로 '
+           f'바뀌었습니다 — {esc(bp["detail"])}.' if bp else "") + '</div>', unsafe_allow_html=True)
     if rep.get("applied_patterns"):
         st.markdown("적용된 방어 패턴 " + " ".join(
             f'<span class="pill pill-b">{esc(p)}</span>' for p in rep["applied_patterns"]),
@@ -1263,6 +1351,29 @@ FLAG_KO = {
 }
 
 
+def _layer_ladder() -> str:
+    """관계도 카드 아래 칸 — '왜 기능이 두 개인가' 에 대한 실측 답(같은 공격 50건 × 방어 구성 4개).
+
+    ★ 네 칸을 전부 그린다. 예전 README 는 '방어 없음 → 보강만 → 둘 다' 세 칸만 보여서 사다리처럼
+      읽혔는데, 근거 문서에는 **탐지기만 8.0%** 칸이 있고 보강만(14.0%)보다 낮다. 하나를 빼면 과장이다.
+    ★ 이 진단의 수치가 아니다 — held-out 검증 데이터라고 칸 위에 말한다. 값·조건·해석 문장은 전부
+      headline_metrics.json(defense_matrix.steps / condition / steps_note)에서 온다.
+    """
+    m = next((x for x in (load_metrics().get("metrics") or []) if x.get("key") == "defense_matrix"), None)
+    steps = (m or {}).get("steps") or []
+    if len(steps) != 4:
+        return ""   # 한 칸이라도 빠진 표는 그리지 않는다(골라 보여 주기 방지)
+    cells = "".join(
+        f'<div class="lad-c{" lad-best" if i == len(steps) - 1 else ""}">'
+        f'<span class="lad-l">{esc(x["label"])}</span>'
+        f'<b class="num">{esc(x["value"])}</b><span class="lad-d">{esc(x["detail"])}</span></div>'
+        for i, x in enumerate(steps))
+    return (f'<div class="ladder"><div class="lad-h">같은 공격 50건에 방어 구성 네 가지 — '
+            f'<b>이 진단이 아니라 검증 데이터</b> ({esc(m["condition"])})</div>'
+            f'<div class="lad-row">{cells}</div>'
+            f'<div class="lad-n">{esc(m.get("steps_note", ""))}</div></div>')
+
+
 def render_layer_relation(residual: int):
     """진단 엔진과 JOKER-KO 탐지기가 어떤 관계인지 — **코드의 실제 관계**를 그린다.
 
@@ -1279,8 +1390,8 @@ def render_layer_relation(residual: int):
     ★ 번호(①②)를 쓰지 않는다 — 프로젝트에 '1층/2층' 과 '처방①/②' 라는 서로 반대인 번호가
       이미 둘 있다. 이름으로만 부른다.
     """
-    st.markdown(
-        '<div class="relation">'
+    card = (
+        '<div class="rel-card"><div class="relation">'
         '<div class="rel-box done"><span class="tag">이번에 시험한 것</span>'
         '<b>진단 엔진</b>'
         '<span class="d">지시문에 한국어 공격을 실제로 던져 뚫리는 곳을 찾고, '
@@ -1290,7 +1401,7 @@ def render_layer_relation(residual: int):
         '<b>JOKER-KO 탐지기</b>'
         '<span class="d">고객 챗봇의 입력단에 답니다. 요청이 모델에 닿기 전에 '
         '한국어 프롬프트 인젝션인지 판정해 잘라냅니다.</span></div>'
-        '</div>', unsafe_allow_html=True)
+        f'</div>{_layer_ladder()}{{note}}</div>')
     tail = (f'이번 진단에서 지시문 보강만으로 막지 못한 <b>{residual}건</b>이, '
             f'탐지기를 배치할 근거입니다.' if residual else
             '이번 진단에서는 남은 유출이 없었습니다. 다만 새로운 우회 시도는 계속 나오므로, '
@@ -1298,9 +1409,10 @@ def render_layer_relation(residual: int):
     # ★ 예전에는 여기에 '진단은 탐지기를 거치지 않고…' 두 문장이 더 있었다. 위 두 상자의
     #   설명이 정확히 같은 말을 하고 있어 중복이라 뺐다(팀 검토: 글이 너무 많다).
     #   빠진 기술적 설명은 README §3 이 그대로 가지고 있다.
-    st.markdown(f'<div class="layers-note"><b>두 기능은 서로를 호출하지 않습니다.</b> '
-                f'진단이 찾아낸 결과가 탐지기를 배치할 근거가 됩니다. {tail}</div>',
-                unsafe_allow_html=True)
+    # ★ 0911 D: 이 문장은 관계도 카드 안(맨 아래)으로 넣었다 — 그림과 그 설명이 두 블록으로 떨어져 있었다.
+    note = (f'<div class="layers-note in-card"><b>두 기능은 서로를 호출하지 않습니다.</b> '
+            f'진단이 찾아낸 결과가 탐지기를 배치할 근거가 됩니다. {tail}</div>')
+    st.markdown(card.replace("{note}", note), unsafe_allow_html=True)
 
 
 def filter_layer_action(rep: dict, index: int) -> bool:
@@ -1493,7 +1605,8 @@ def _verdict_line(r: dict) -> str:
     return "상세 판정 근거가 기록되지 않았습니다."
 
 
-def _response_block(r: dict, label: str):
+def _response_block(r: dict, label: str, verdict: bool = True):
+    """verdict=False 면 판정 근거 줄을 빼고 그린다 — 대표 카드는 그 줄을 카드 아래 접기로 모은다."""
     if not r:
         st.markdown(f'<div class="resp-h">{esc(label)}</div>'
                     '<div class="resp" style="color:#66758C">이 라운드는 실행되지 않았습니다.</div>',
@@ -1508,8 +1621,8 @@ def _response_block(r: dict, label: str):
         f'<div class="resp-h">{esc(label)}'
         f'<span class="badge" style="color:{color}"><i style="background:{color}"></i>{text}</span></div>'
         f'<div class="resp" style="border-left:3px solid {color}">{body}</div>'
-        f'<div style="font-size:.79rem;color:#5C6C83;line-height:1.65;margin:8px 0 0">'
-        f'{_verdict_line(r)}</div>', unsafe_allow_html=True)
+        + (f'<div style="font-size:.79rem;color:#5C6C83;line-height:1.65;margin:8px 0 0">'
+           f'{_verdict_line(r)}</div>' if verdict else ""), unsafe_allow_html=True)
 
 
 def render_finding_detail(run: dict, rep: dict, fid: str):
@@ -1611,10 +1724,9 @@ def render_done(run: dict):
     if fid and rep.get("attempts"):
         render_finding_detail(run, rep, fid)
         return
-    render_summary(rep)
+    render_summary(rep, run_flow_html(rep, (rep.get("findings_summary") or {}).get("total", 0),
+                                      (run.get("recon") or {}).get("assets")))
     render_scope_note(run)
-    render_run_flow(rep, (rep.get("findings_summary") or {}).get("total", 0),
-                    (run.get("recon") or {}).get("assets"))
     render_evidence_cards(rep, gated)
     section("02 · 권고 조치", "문구 보강만으로 끝내지 않고, 적용 후 정상 업무까지 확인하세요.")
     # ★ 두 기능의 관계도를 권고 맨 위에 둔다 — 아래 1번 권고가 왜 나왔는지를
@@ -1625,10 +1737,14 @@ def render_done(run: dict):
     #   나머지 3개는 진단 내용과 무관한 일반 원칙이므로 그 뒤에 둔다.
     step = 2 if filter_layer_action(rep, 1) else 1
     detector_cta(rep)
+    # ★ 0911 D: 권고는 이 진단이 만든 것만 여기 둔다.
+    #   · '비밀값을 지시문 밖으로' 는 남긴다 — 이 진단이 지시문 안에서 비밀값을 실제로 찾아냈다(근본 조치).
+    #   · '보강안의 추가 규칙을 검토하세요' 는 뺐다 — 아래 보강안 접기의 경고("전체를 운영 설정에 그대로
+    #     덮어쓰지 마세요 … 추가 규칙을 검토해 적용하세요")와 제목까지 같은 말이다.
+    #   · '정상 질문으로 재검증' 은 보강안 접기 맨 위로 옮겼다(render_prescription) — 02 설명 줄이 같은 말을
+    #     이미 하고, 그 자리에서 우리 실측(정상 업무 통과율)을 근거로 붙일 수 있다.
     actions = [
         ("비밀값을 지시문 밖으로 옮기세요", "실제 비밀번호와 접근키는 서버에서 보관하고 인증·권한 검사로 접근을 제어하세요."),
-        ("보강안의 추가 규칙을 검토하세요", "아래에서 바뀐 부분을 확인하세요. 마스킹된 전체 사본을 운영 설정에 그대로 덮어쓰지 마세요."),
-        ("별도 공격과 정상 질문으로 재검증하세요", "같은 공격의 개선만으로 일반화하지 마세요. 정상 업무까지 거절하지 않는지도 확인해야 합니다."),
     ]
     st.markdown("".join(f'<div class="next-action"><span class="step">{i}</span>'
                        f'<div><b>{title}</b><p>{body}</p></div></div>'
@@ -1638,9 +1754,12 @@ def render_done(run: dict):
     with st.expander("보강안과 변경 내용 확인", expanded=False):
         render_prescription(rep, gated)
     section("03 · 더 자세히 확인하기")
+    # ★ 0911 D: 접기 두 개(전체 공격 기록 / 상세 통계와 측정 조건)를 하나로 — 둘 다 '더 자세히' 라서.
     with st.expander("전체 공격 기록 확인", expanded=False):
+        tab_log, tab_stat = st.tabs(["공격 기록", "통계 · 측정 조건"])
+    with tab_log:
         render_findings(rep, gated)
-    with st.expander("상세 통계와 측정 조건", expanded=False):
+    with tab_stat:
         st.write("보강안 재시험 등급: " + (rep.get("grade") or "판정 보류"))
         value, _, why = delta_view(rep)
         st.write("공격 성공률 변화: " + value)
@@ -2272,6 +2391,8 @@ def render_dashboard(base: str):
             "방어 문구로 지시문을 보강한 뒤, 같은 공격을 다시 던져 개선을 숫자로 보여줍니다. "
             "무엇을 넣을지 모르겠다면 <b>예시 지시문</b>으로 바로 시작할 수 있습니다.",
             "예시로 첫 진단 시작하기", "dash_empty_cta", "diagnose")
+        # ★ 새 계정의 빈 대시보드에서도 근거는 보여야 한다 — 여기서 return 하면 첫 화면에 아무것도 없다.
+        render_tool_evidence("dash_empty")
         return
 
     # ★ mock(가짜 응답) 런은 집계에서 뺀다. 항상 100%→0%·등급 A 라서 섞이면 지표가 실제보다
@@ -2327,6 +2448,8 @@ def render_dashboard(base: str):
         st.markdown('<div class="notice">지금 저장된 진단이 모두 <b>mock(가짜 응답)</b> 이라 '
                     '위 지표에 집계할 실제 결과가 없습니다. 실제 모델로 한 번 진단하면 여기에 '
                     '값이 채워집니다.</div>', unsafe_allow_html=True)
+    # ★ 지표 줄 바로 아래(위 mock 안내는 지표 줄에 대한 말이라 그 뒤). 시연 첫 화면에서 스크롤 없이 보인다.
+    render_tool_evidence("dash")
 
     if need:
         section("조치가 필요한 진단",
@@ -2346,6 +2469,12 @@ def render_dashboard(base: str):
 
     section("최근 진단")
     _scan_table("dash_recent", runs[:5])
+    if len(runs) > 5:
+        with st.container(key="row_dash_all"):
+            c1, _ = st.columns([1.2, 3])
+            if c1.button(f"전체 {len(runs)}건 보기  →", key="dash_all", use_container_width=True):
+                go("history")
+                st.rerun()
 
 
 def _scan_table(key: str, runs: list):
@@ -2442,19 +2571,12 @@ def render_settings(base: str):
             st.session_state["guest_checked_at"] = 0
             st.rerun()
 
-    with st.expander("이 제품의 검증 근거 — 수치와 측정 조건"):
-        m = load_metrics()
-        if not m:
-            st.caption("근거 파일을 찾을 수 없습니다.")
-        else:
-            st.caption("아래는 **이 도구 자체의 검증 수치**입니다 — 지금 여러분이 진단한 결과가 "
-                       "아니라, 다른 데이터로 우리가 측정한 값입니다.")
-            for x in m.get("metrics", []):
-                st.markdown(f"**{esc(x['label'])} — {esc(x['value'])}**  \n"
-                            f"{esc(x['detail'])} · 측정 조건: {esc(x['condition'])}")
-            for line in m.get("limitations", []):
-                st.caption("· " + line)
-            st.caption(f"갱신 {m.get('updated','-')} · 원본 `data/evidence/headline_metrics.json`")
+    subsection("이 제품의 검증 근거")
+    st.caption("수치·측정 조건·출처·한계 전체입니다. 대시보드와 리포트 상단에서도 같은 창이 열립니다.")
+    with st.container(key="row_set_ev"):
+        c1, _ = st.columns([1.2, 3])
+        if c1.button("근거 전체 보기", key="set_ev", use_container_width=True):
+            evidence_dialog()
 
     subsection("계정")
     email = st.session_state.get("user_email")
