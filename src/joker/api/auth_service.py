@@ -53,6 +53,8 @@ class AuthService:
     # ── 가입 ────────────────────────────────────────────────
     def signup(self, body: dict | None) -> dict:
         b = body or {}
+        if not isinstance(b, dict) or any(not isinstance(b.get(k, ""), str) for k in ("email", "password")):
+            return _err(400, "bad_input", "이메일과 비밀번호는 문자열이어야 합니다.")
         email = auth.normalize_email(b.get("email"))
         password = b.get("password") or ""
 
@@ -73,6 +75,10 @@ class AuthService:
 
     # ── 로그인 ──────────────────────────────────────────────
     def login(self, body: dict | None) -> dict:
+        if not isinstance(body, (dict, type(None))) or any(
+            not isinstance((body or {}).get(k, ""), str) for k in ("email", "password")
+        ):
+            return _err(400, "bad_input", "이메일과 비밀번호는 문자열이어야 합니다.")
         b = body or {}
         email = auth.normalize_email(b.get("email"))
         password = b.get("password") or ""

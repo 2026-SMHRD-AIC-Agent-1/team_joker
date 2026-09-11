@@ -144,6 +144,7 @@ class Attempt:
     leak_channel: LeakChannel | None = None
     was_gray: bool = False
     hit_assets: list[str] = field(default_factory=list)
+    verdict_reason: str = ""
     # 재현 맥락 3종 — 없으면 결과를 재현할 수 없다
     victim_model: str = ""
     temperature: float = 0.0
@@ -247,13 +248,15 @@ TECHNIQUE_KO: dict[str, str] = {
 # ★ 새 등급을 지어낸 게 아니라 round_no × verdict 파생값이다. 그래서 화면·API·저장소가
 #   전부 이 함수 하나를 쓴다 — 규칙이 두 벌이 되는 순간 '합이 안 맞는 표'가 나온다.
 #   (실측: r1 block → r2 leak 99건, r2 미실행 836건이 DB 에 실제로 있다. 3상태로는 못 센다.)
-FINDING_STATES = ("unresolved", "regressed", "resolved", "unaffected", "no_retry")
+FINDING_STATES = ("unresolved", "regressed", "unjudged", "resolved", "unaffected", "no_retry")
 
 
 def finding_state(v1: str | None, v2: str | None) -> str:
     """처방 전/후 판정 → Finding 상태."""
     if v1 is None or v2 is None:
         return "no_retry"
+    if v1 not in ("leak", "block") or v2 not in ("leak", "block"):
+        return "unjudged"
     if v1 == "leak":
         return "unresolved" if v2 == "leak" else "resolved"
     return "regressed" if v2 == "leak" else "unaffected"

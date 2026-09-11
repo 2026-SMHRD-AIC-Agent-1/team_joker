@@ -17,7 +17,8 @@ import json
 import sqlite3
 from pathlib import Path
 
-from joker.models import finding_state
+from joker.models import finding_state, FINDING_STATES
+from joker.safety.persistence import safe_snapshot, PRIVACY_VERSION
 from joker.state import RunState
 
 _SCHEMA_PATH = Path(__file__).parent / "schema.sql"
@@ -91,7 +92,14 @@ class Repository:
             # ★ 이 ALTER 가 없으면 이미 joker.db 가 깔린 PC 에서 "no such column: user_id" 로
             #   이력·저장이 통째로 죽는다. CREATE TABLE IF NOT EXISTS 는 열을 안 만든다.
             ("user_id", "TEXT"),
+            # 계약 v0.6 — 비회원 진단을 실행한 방문자. 두 가지 일을 한다.
+            #   ① 무료 1회 정책의 카운트 키.
+            #   ② 비회원 결과의 접근 범위. 이 열이 없던 v0.4~v0.5 에서는 user_id IS NULL 인
+            #      진단이면 run_id 만 알면 **아무 방문자나 열고 claim 까지** 할 수 있었다.
+            ("guest_id", "TEXT"),
+            ("privacy_version", "INTEGER NOT NULL DEFAULT 0"),
         ],
+        "tb_attempt": [("verdict_reason", "TEXT")],
     }
 
     def _migrate(self, con: sqlite3.Connection) -> None:
@@ -104,6 +112,7 @@ class Repository:
     # ── 저장 ──────────────────────────────────────────────
     def save_run(self, state: RunState) -> str:
         """진단 1회(state)를 tb_diagnosis 1행 + tb_attempt N행 + 자산/패턴으로 저장."""
+        state = safe_snapshot(state)
         run_id = state.get("run_id") or f"run_{_now()}"
         report = state.get("report")
         # target_prompt_hash 는 NOT NULL. 없으면 지시문에서 계산해 채운다(방어적).
@@ -128,8 +137,8 @@ class Repository:
                         target_preset, fidelity, is_approximation,
                         target_prompt, target_prompt_hash, persona, org,
                         inconclusive, grade, comparable, asr_before, asr_after, asr_delta,
-                        patched_prompt, user_id)
-                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                        patched_prompt, user_id, guest_id, privacy_version)
+                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                     (
                         run_id, _now(),
                         state.get("env_profile"), backend, victim_model,
@@ -146,6 +155,8 @@ class Repository:
                         report.delta if report else None,
                         state.get("patched_prompt"),
                         state.get("user_id"),   # 비회원 진단이면 None → NULL
+                        state.get("guest_id"),  # 회원 진단이면 None → NULL
+                        PRIVACY_VERSION,
                     ),
                 )
 
@@ -155,8 +166,8 @@ class Repository:
                            (run_id, round_no, attack_id, technique, goal, rendered_text, response_raw,
                             verdict, verdict_by, leak_channel, was_gray, hit_assets,
                             victim_model, temperature, seed, latency_ms,
-                            defense_level, verdict_gold, verdict_raw, blocked_by_filter)
-                           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                            defense_level, verdict_gold, verdict_raw, blocked_by_filter, verdict_reason)
+                           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                         (
                             run_id, at.round_no, at.attack_id, _val(at.technique), _val(at.goal),
                             at.rendered_text, at.response_raw,
@@ -164,6 +175,7 @@ class Repository:
                             1 if at.was_gray else 0, json.dumps(at.hit_assets, ensure_ascii=False),
                             at.victim_model, at.temperature, at.seed, at.latency_ms,
                             None, None, None, None,  # 레거시 4열: 신규 진단은 NULL
+                            at.verdict_reason,
                         ),
                     )
 
@@ -207,44 +219,96 @@ class Repository:
         d["applied_patterns"] = patterns
         return d
 
-    _LIST_COLS = """SELECT run_id, created_at, grade, inconclusive, asr_before, asr_after, persona,
-                           model_victim AS target_model, fidelity, is_approximation, backend, user_id
+    _LIST_COLS = """SELECT run_id, created_at, grade, inconclusive, asr_before, asr_after, asr_delta,
+                           comparable, persona,
+                           model_victim AS target_model, fidelity, is_approximation, backend,
+                           user_id, guest_id, privacy_version
                     FROM tb_diagnosis """
     # ★ backend 도 온다(0904). mock 런은 '가짜 응답으로 만든 100%→0%' 라서 이력 목록에서
     #   제일 좋아 보인다 — 구분 없이 나열하면 발표 중에 그 행을 근거로 읽게 된다.
     # ★ 목록에도 모델이 온다(계약 v0.2). 모델이 다르면 등급을 나란히 비교하면 안 되므로
     #   이력 화면이 행마다 모델명을 찍어야 한다.
 
-    def list_runs(self, user_id: str | None = None) -> list[dict]:
+    def list_runs(self, user_id: str | None = None,
+                  guest_id: str | None = None) -> list[dict]:
         """이력 화면용 요약 목록(최신순).
 
         ★ 소유자 범위를 SQL 에서 자른다 — 접근 제어는 화면이 아니라 질의에서 한다.
           화면에서 거르면 응답에는 이미 남의 데이터가 실려 있고, 개발자도구로 그대로 보인다.
-        - user_id=None (비회원): 주인이 없는 진단(user_id IS NULL)만. 남의 회원 진단은 안 보인다.
         - user_id 지정 (회원): 본인 것만.
+        - user_id=None + guest_id 지정 (비회원 세션): **그 방문자가 만든** 주인 없는 진단만.
+        - user_id=None + guest_id=None: 주인 없는 진단 전체(관리·테스트용 기본값).
+          ★ HTTP 층은 이 조합을 쓰지 않는다 — app.py 가 항상 guest_id 를 넘긴다.
+            비회원에게 이 목록을 그대로 주면 다른 방문자의 체험 진단이 통째로 보인다.
         """
         con = self._connect()
         con.row_factory = sqlite3.Row
         try:
-            if user_id is None:
-                rows = con.execute(
-                    self._LIST_COLS + "WHERE user_id IS NULL ORDER BY created_at DESC").fetchall()
-            else:
+            if user_id is not None:
                 rows = con.execute(
                     self._LIST_COLS + "WHERE user_id = ? ORDER BY created_at DESC",
                     (user_id,)).fetchall()
+            elif guest_id is not None:
+                rows = con.execute(
+                    self._LIST_COLS + "WHERE user_id IS NULL AND guest_id = ? "
+                    "ORDER BY created_at DESC", (guest_id,)).fetchall()
+            else:
+                rows = con.execute(
+                    self._LIST_COLS + "WHERE user_id IS NULL ORDER BY created_at DESC").fetchall()
             runs = [dict(r) for r in rows]
             self._attach_finding_counts(con, runs)
         finally:
             con.close()
         return runs
 
+    def guest_run_count(self, guest_id: str) -> int:
+        """이 방문자가 **결과를 실제로 받은** 체험 진단 수. 무료 1회 정책의 분모.
+
+        ★ inconclusive(진단 불가)는 세지 않는다. 사용자가 얻은 것이 없는데 1회를 차감하면
+          '보호할 값이 없는 지시문을 넣었다' 는 이유로 체험이 끝나 버린다.
+        ★ 오류로 죽은 진단은 애초에 tb_diagnosis 에 행이 없다(워커가 저장 전에 예외로 끝난다)
+          → 자동으로 재시도가 허용된다. 이게 "서버 오류 시 재시도 허용" 의 실체다.
+        """
+        con = self._connect()
+        try:
+            row = con.execute(
+                "SELECT COUNT(*) FROM tb_diagnosis WHERE guest_id = ? "
+                "AND COALESCE(inconclusive, 0) = 0", (guest_id,)).fetchone()
+        finally:
+            con.close()
+        return int(row[0] if row else 0)
+
+    def guest_run_count_by_ip(self, ip_hash: str) -> int:
+        """같은 ip_hash 로 발급된 게스트들이 쓴 체험 진단 수의 합.
+
+        ★ 왜 두 번째 축이 필요한가: 게스트 토큰 하나만 보면 시크릿 창·localStorage 삭제로
+          무한이 된다(=브라우저 상태값 하나로 제한하는 것과 같아진다). IP 해시를 같이 세면
+          같은 회선에서의 반복은 막힌다. 대신 공유 회선(학원·카페)에서는 남이 이미 쓴 1회에
+          막힐 수 있다 — 이 한계는 화면에 그대로 쓴다.
+        """
+        if not ip_hash:
+            return 0
+        con = self._connect()
+        try:
+            row = con.execute(
+                "SELECT COUNT(*) FROM tb_diagnosis d JOIN tb_guest g ON d.guest_id = g.guest_id "
+                "WHERE g.ip_hash = ? AND COALESCE(d.inconclusive, 0) = 0", (ip_hash,)).fetchone()
+        finally:
+            con.close()
+        return int(row[0] if row else 0)
+
     @staticmethod
     def _attach_finding_counts(con, runs: list[dict]) -> None:
-        """목록 각 행에 발견 항목 수를 붙인다 — unresolved(미해결) · findings_total.
+        """목록 각 행에 발견 항목 수를 붙인다 — 상태 5개 전부 + findings_total + action_required.
 
         ★ 왜 목록에 필요한가: 등급·ASR만 나열하면 "그래서 지금 남은 게 몇 건인데?" 에 답을 못 한다.
-          목록의 유일하게 행동을 부르는 신호가 미해결 건수다.
+          목록의 유일하게 행동을 부르는 신호가 '지금 조치가 필요한 건수' 다.
+        ★ 2026-09-10 수정 — 예전에는 unresolved 만 셌다. 그런데 조치가 필요한 건 두 가지다:
+            unresolved  처방해도 계속 뚫림
+            regressed   처방 **때문에** 새로 뚫림   ← 오히려 더 급한 건인데 0건으로 세고 있었다
+          그래서 대시보드의 "조치가 필요한 발견 항목" 이 결과 상세의 상태 스트립과 어긋났다.
+          기존 소비자를 깨뜨리지 않도록 `unresolved` 의 의미는 그대로 두고(미해결만),
+          합계는 새 필드 `action_required` 로 낸다 — 같은 이름이 두 가지를 뜻하지 않게.
         ★ N+1 을 만들지 않는다 — run 하나당 질의하지 않고 IN 절로 한 번에 접는다.
         ★ 상태 판정은 models.finding_state 하나만 쓴다(화면·API·저장소가 같은 규칙).
         """
@@ -258,32 +322,69 @@ class Repository:
                        MAX(CASE WHEN round_no = 2 THEN verdict END) AS v2
                 FROM tb_attempt WHERE run_id IN ({holes})
                 GROUP BY run_id, attack_id""", ids).fetchall()
-        counts: dict[str, dict] = {i: {"unresolved": 0, "findings_total": 0} for i in ids}
+        blank = {k: 0 for k in FINDING_STATES}
+        counts: dict[str, dict] = {
+            i: {**blank, "findings_total": 0, "action_required": 0} for i in ids}
         for row in pairs:
             c = counts[row["run_id"]]
             c["findings_total"] += 1
-            if finding_state(row["v1"], row["v2"]) == "unresolved":
-                c["unresolved"] += 1
+            c[finding_state(row["v1"], row["v2"])] += 1
+        for c in counts.values():
+            c["action_required"] = c["unresolved"] + c["regressed"] + c["unjudged"] + c["no_retry"]
         for r in runs:
             r.update(counts[r["run_id"]])
 
-    def claim_run(self, run_id: str, user_id: str) -> bool:
+    def claim_run(self, run_id: str, user_id: str, guest_id: str | None = None) -> bool:
         """주인 없는(user_id IS NULL) 진단을 이 회원 것으로 귀속시킨다.
 
         왜 필요한가: 비회원으로 진단 → 게이트에서 가입, 이 동선이 제품의 전환 지점인데
         가입 직후 '내 이력' 이 비어 있으면 방금 한 진단을 다시 못 연다.
         ★ `WHERE user_id IS NULL` 이 안전장치다 — 이미 주인이 있는 진단은 절대 못 뺏는다.
-          주인 없는 진단은 애초에 run_id 만 알면 누구나 볼 수 있으므로, 귀속으로 새로 새는 정보는 없다.
+        ★ 2026-09-10 추가 — guest_id 를 주면 **그 방문자가 만든 진단만** 귀속된다.
+          예전 주석은 "주인 없는 진단은 run_id 만 알면 누구나 볼 수 있으니 새로 새는 정보가 없다"
+          였는데, 그 전제(=아무나 열람 가능) 자체가 구멍이었다. 이제 비회원 열람도 guest_id
+          범위로 좁혔으므로, run_id 를 찍어 맞춘 제3자가 남의 체험 결과를 자기 계정으로
+          가져가는 경로도 여기서 같이 막는다. HTTP 층은 항상 guest_id 를 넘긴다.
         """
         con = self._connect()
         try:
             with con:
-                cur = con.execute(
-                    "UPDATE tb_diagnosis SET user_id = ? WHERE run_id = ? AND user_id IS NULL",
-                    (user_id, run_id))
+                if guest_id is None:
+                    cur = con.execute(
+                        "UPDATE tb_diagnosis SET user_id = ? WHERE run_id = ? AND user_id IS NULL",
+                        (user_id, run_id))
+                else:
+                    cur = con.execute(
+                        "UPDATE tb_diagnosis SET user_id = ? "
+                        "WHERE run_id = ? AND user_id IS NULL AND guest_id = ?",
+                        (user_id, run_id, guest_id))
             return cur.rowcount > 0
         finally:
             con.close()
+
+    # ── 비회원 방문자 ──────────────────────────────────────
+    def upsert_guest(self, guest_id: str, ip_hash: str | None, now: str) -> None:
+        """게스트 발급/갱신. ip_hash 는 되돌릴 수 없는 값이고 IP 원문은 저장하지 않는다."""
+        con = self._connect()
+        try:
+            with con:
+                con.execute(
+                    "INSERT INTO tb_guest (guest_id, ip_hash, created_at, last_seen_at) "
+                    "VALUES (?,?,?,?) "
+                    "ON CONFLICT(guest_id) DO UPDATE SET last_seen_at = excluded.last_seen_at",
+                    (guest_id, ip_hash, now, now))
+        finally:
+            con.close()
+
+    def guest_exists(self, guest_id: str) -> bool:
+        """서명이 맞아도 서버에 없는 게스트는 거절한다(DB 를 비우면 토큰도 같이 무효)."""
+        con = self._connect()
+        try:
+            row = con.execute(
+                "SELECT 1 FROM tb_guest WHERE guest_id = ?", (guest_id,)).fetchone()
+        finally:
+            con.close()
+        return row is not None
 
     def delete_run(self, run_id: str, user_id: str) -> bool:
         """본인 소유 진단 1건 삭제. 지운 행이 없으면 False(호출자는 404 로 답한다).

@@ -140,6 +140,7 @@ export function RunPage() {
   // 로그인·가입(claim) 직후에는 같은 진단을 다시 받아 전체 리포트로 바꾼다 — token 이 바뀌면 다시 부른다.
   useEffect(() => {
     let alive = true;
+    setError(null);
     api.get<Run>(`/api/runs/${encodeURIComponent(runId)}`)
       .then((r) => { if (alive) { setRun(r); setError(null); } })
       .catch((e) => { if (alive) setError(e); });
@@ -152,7 +153,7 @@ export function RunPage() {
     if (!running) return;
     const t = setTimeout(() => setTick((x) => x + 1), POLL_MS);
     return () => clearTimeout(t);
-  }, [running, run]);
+  }, [running, run, tick]);
 
   // 상세 화면으로 오갈 때 위에서부터 보이게.
   useEffect(() => { if (fid) window.scrollTo(0, 0); }, [fid]);
@@ -178,7 +179,7 @@ export function RunPage() {
           <Failure icon="⚠️" title="진단을 불러오지 못했습니다" why={error.message} code={error.code} runId={runId}
             actions={["잠시 뒤 새로고침", "반복되면 API 서버 터미널의 로그 확인"]} />
         ) : <ServerDown runId={runId} />}
-        <div style={{ marginTop: 12 }}>{newRun}</div>
+        <div className="btn-row" style={{ marginTop: 12 }}><button className="btn" onClick={() => setTick(x => x + 1)}>다시 불러오기</button>{newRun}</div>
       </>
     );
   }

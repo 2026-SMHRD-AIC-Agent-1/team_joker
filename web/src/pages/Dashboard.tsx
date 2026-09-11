@@ -22,14 +22,14 @@ export interface DashStats {
 
 export function dashStats(runs: RunRow[]): DashStats {
   // ★ mock(가짜 응답) 런은 집계에서 뺀다. 항상 100%→0%·등급 A 라서 섞이면 지표가 좋아 보인다.
-  const real = runs.filter((r) => !isMock(r));
+  const real = runs.filter((r) => !isMock(r) && r.status !== "running" && r.status !== "error");
   const openRuns = real.filter((r) => actionRequired(r) > 0);
   // ★ 비교 불가 진단은 평균에서 뺀다 — 다른 공격 집합의 두 수의 뺄셈은 개선폭이 아니다.
   const deltas = real
     .filter((r) => typeof r.asr_before === "number" && typeof r.asr_after === "number" && comparableRun(r))
     .map((r) => (r.asr_before as number) - (r.asr_after as number));
   return {
-    real, mockN: runs.length - real.length,
+    real, mockN: runs.filter(isMock).length,
     need: real.reduce((s, r) => s + actionRequired(r), 0), openRuns, deltas,
     incomparableN: real.filter((r) => r.comparable === 0 || r.comparable === false).length,
     // ★ '최근 등급' 은 실제 진단 중 등급이 매겨진 최신 건. mock 으로 폴백하지 않는다.
@@ -47,9 +47,10 @@ export function avgText(deltas: number[]): { text: string; color?: string } {
 }
 
 export function Dashboard() {
-  const { data, error, loading } = useApi<RunList>("/api/runs");
+  const { data, error, loading, reload } = useApi<RunList>("/api/runs");
   const header = (
     <PageHeader title="대시보드" desc="이 계정으로 실행한 진단의 현황입니다.">
+      <button className="btn" disabled={loading} onClick={reload}>새로고침</button>
       <Link className="btn btn-primary" to="/diagnose">＋ 새 진단</Link>
     </PageHeader>
   );

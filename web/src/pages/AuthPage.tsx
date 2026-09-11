@@ -2,7 +2,7 @@
 // ★ 큰 홍보 문구·장식 차트를 두지 않는다. 인증 진입점은 가운데 패널 하나뿐이다.
 import { useState } from "react";
 import type { FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { Footer } from "../components/Footer";
 import { MockBanner } from "../components/MockBanner";
@@ -76,7 +76,7 @@ export function AuthForm({ onDone }: { onDone?: (claimed: boolean) => void }) {
 
 export function AuthPage() {
   const nav = useNavigate();
-  const { guest, lastRunId, rememberRun } = useAuth();
+  const { guest, lastRunId } = useAuth();
   const exhausted = guest.remaining === 0;
   return (
     <div className="main-narrow">
@@ -97,8 +97,9 @@ export function AuthPage() {
           <div className="auth-panel-t">진단 기록과 보강안을 이어서 보려면 로그인하세요.</div>
           <AuthForm onDone={(claimed) => nav(claimed && lastRunId ? `/runs/${encodeURIComponent(lastRunId)}` : "/")} />
           <div className="auth-div">또는</div>
+          {lastRunId ? <Link className="btn btn-block" to={`/runs/${encodeURIComponent(lastRunId)}`}>{guest.runningRunId ? "진행 중인 진단으로 돌아가기" : "이전 진단 결과 보기"}</Link> : null}
           <button className="btn btn-block" disabled={exhausted}
-                  onClick={() => { rememberRun(null); nav("/diagnose"); }}>
+                  onClick={() => { if (guest.runningRunId) nav(`/runs/${encodeURIComponent(guest.runningRunId)}`); else nav("/diagnose"); }}>
             회원가입 없이 무료 진단 1회
           </button>
           {exhausted ? (

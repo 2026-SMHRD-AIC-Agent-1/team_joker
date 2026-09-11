@@ -29,10 +29,16 @@ def _err(status: int, code: str, message: str) -> dict:
     return {"ok": False, "status": status, "code": code, "message": message}
 
 
-def prepare(body: dict, base_settings, data_dir: str, user_id: str | None = None) -> dict:
+def prepare(body: dict, base_settings, data_dir: str, user_id: str | None = None,
+            guest_id: str | None = None) -> dict:
     """user_id 는 로그인 회원의 소유자 키. None 이면 비회원 진단(주인 없음).
+    guest_id 는 비회원 방문자 키 — 무료 1회 카운트와 결과 열람 범위의 기준(계약 v0.6).
     ★ 키워드 인자라 기존 호출부(테스트·스크립트)는 그대로 동작한다 — 계약 v0.3 이 안 깨진다."""
+    if not isinstance(body, dict) or not isinstance(body.get("target_prompt", ""), str):
+        return _err(400, "bad_input", "시스템 지시문은 문자열이어야 합니다.")
     prompt = (body.get("target_prompt") or "").strip()
+    if len(prompt) > 20000:
+        return _err(400, "prompt_too_long", "시스템 지시문은 20,000자 이내로 입력하세요.")
     if not prompt:
         return _err(400, "target_prompt_required", "진단할 시스템 프롬프트(target_prompt)가 필요합니다.")
 
@@ -48,6 +54,18 @@ def prepare(body: dict, base_settings, data_dir: str, user_id: str | None = None
     dd = Path(data_dir)
     attacks = load_default_corpus(str(dd), run_audit=False)
     patterns = load_patterns(dd.parent / "defenses" / "patterns.yaml")
+    est = estimate_calls(len(attacks), full=settings.full_sweep)
+
+    # ★ 호출 상한이 모자라면 '3분 뒤에' 가 아니라 지금 막는다 (2026-09-09).
+    #   적응형 스크리닝은 취약 기법이 많으면 전량까지 올라간다 — 그래서 하한이 아니라
+    #   victim_max 로 검사한다(usage.py: "사용자 돈이 걸린 고지를 하한만 말하면 안 된다").
+    #   여기서 안 막으면 BudgetExceeded 로 중간에 죽고 그때까지의 결과도 저장되지 않는다.
+    if est["victim_max"] > settings.max_calls:
+        return _err(400, "budget_too_low",
+                    f"이 진단은 대상 모델을 최대 {est['victim_max']}회 호출할 수 있는데 "
+                    f"호출 상한이 {settings.max_calls}회입니다. "
+                    f"JOKER_MAX_CALLS 를 {est['victim_max']} 이상으로 올리세요.")
+
     providers = build_providers(settings)
 
     # 프리플라이트 1콜 — BYOK 만. 잘못된 키·엔드포인트로 3~4분·요금을 날리기 전에 즉시 502.
@@ -64,24 +82,12 @@ def prepare(body: dict, base_settings, data_dir: str, user_id: str | None = None
             return _err(502, "target_unreachable",
                         "대상 모델 연결에 실패했습니다. base_url·api_key·모델명을 확인하세요.")
 
-    est = estimate_calls(len(attacks), full=settings.full_sweep)
-
-    # ★ 호출 상한이 모자라면 '3분 뒤에' 가 아니라 지금 막는다 (2026-09-09).
-    #   적응형 스크리닝은 취약 기법이 많으면 전량까지 올라간다 — 그래서 하한이 아니라
-    #   victim_max 로 검사한다(usage.py: "사용자 돈이 걸린 고지를 하한만 말하면 안 된다").
-    #   여기서 안 막으면 BudgetExceeded 로 중간에 죽고 그때까지의 결과도 저장되지 않는다.
-    if est["victim_max"] > settings.max_calls:
-        return _err(400, "budget_too_low",
-                    f"이 진단은 대상 모델을 최대 {est['victim_max']}회 호출할 수 있는데 "
-                    f"호출 상한이 {settings.max_calls}회입니다. "
-                    f"JOKER_MAX_CALLS 를 {est['victim_max']} 이상으로 올리세요.")
-
-    run_id = f"run_{datetime.datetime.now():%Y%m%d_%H%M%S}_{secrets.token_hex(2)}"
+    run_id = f"run_{datetime.datetime.now():%Y%m%d_%H%M%S}_{secrets.token_hex(12)}"
     return {
         "ok": True, "run_id": run_id, "settings": settings, "providers": providers,
         "attacks": attacks, "patterns": patterns, "estimated": est,
         "target": target_block(settings.target_info()), "prompt": prompt,
-        "user_id": user_id,
+        "user_id": user_id, "guest_id": guest_id,
     }
 
 
@@ -124,6 +130,9 @@ def make_worker(prep: dict, repo, on_progress=None):
         state["victim_model"] = settings.victim_model
         # ★ 소유자. 이 값이 있어야 GET/DELETE 가 남의 진단을 걸러낼 수 있다(IDOR 차단의 근거).
         state["user_id"] = prep.get("user_id")
+        # ★ 비회원 진단의 방문자 키. 이게 저장돼야 (가) 무료 1회를 셀 수 있고
+        #   (나) 다른 방문자가 run_id 만으로 이 결과를 열거나 claim 하지 못한다.
+        state["guest_id"] = prep.get("guest_id")
         repo.init_schema()
         repo.save_run(state)
 

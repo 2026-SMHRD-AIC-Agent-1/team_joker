@@ -17,12 +17,12 @@ export function RunTable({ runs, label }: { runs: RunRow[]; label: string }) {
             const n = actionRequired(r);
             return (
               <tr key={r.run_id}>
-                <td>{n ? (
+                <td>{r.status === "running" ? <span className="pill">진행 중</span> : r.status === "error" ? <span className="pill">실패</span> : r.inconclusive ? <span className="pill">진단 불가</span> : n ? (
                   <span className="badge" style={{ color: sev("unresolved") }}>
                     <i style={{ background: sev("unresolved") }} />조치 필요 {n}
                   </span>
                 ) : <span className="cell-sub">—</span>}</td>
-                <td><span className="mono rid">{r.run_id}</span></td>
+                <td><span className="mono rid">{r.run_id}</span><div className="cell-sub">{r.created_at ? new Date(r.created_at).toLocaleString("ko-KR") : ""}</div></td>
                 <td><b>{r.grade ?? "-"}</b></td>
                 <td><BeforeAfter before={r.asr_before} after={r.asr_after} comparable={r.comparable} /></td>
                 <td><span className="cell-sub">{r.target_model ?? "-"}</span>

@@ -130,18 +130,30 @@ export function NewRun() {
   const [failure, setFailure] = useState<ReactNode>(null);
   const [authOpen, setAuthOpen] = useState(false);
   const preset = presetId ?? models.data?.default ?? null;
+  const chosen = models.data?.presets.find((p) => p.id === preset);
+  const estimate = models.data?.estimates?.[mode];
 
   const start = async () => {
+    if (busy) return;
     setWarn(null);
     setFailure(null);
     if (!prompt.trim()) { setWarn("진단할 시스템 지시문을 입력하세요."); return; }
+    if (prompt.trim().length > 20000) { setWarn("시스템 지시문은 20,000자 이내로 입력하세요."); return; }
     const chosen = models.data?.presets.find((p) => p.id === preset);
+    if (chosen?.requires_key && (!byok.model.trim() || !byok.api_key.trim() || !/^https:\/\//.test(byok.base_url))) {
+      setWarn("BYOK 모델명, HTTPS API 주소와 API 키를 입력하세요."); return;
+    }
     const body: Record<string, unknown> = { target_prompt: prompt.trim(), mode };
     if (chosen) {
       body.target = chosen.requires_key ? { preset: chosen.id, ...byok } : { preset: chosen.id };
     }
     setBusy(true);
     try {
+      if (!loggedIn) {
+        const q = await refreshGuest();
+        if (q.runningRunId) { rememberRun(q.runningRunId); nav(`/runs/${encodeURIComponent(q.runningRunId)}`); return; }
+        if (q.remaining === null) { setFailure(<ServerDown />); return; }
+      }
       const r = await api.post<{ run_id: string; estimated_calls?: number }>("/api/diagnose", body);
       setByok((b) => ({ ...b, api_key: "" }));
       rememberRun(r.run_id);
@@ -158,6 +170,7 @@ export function NewRun() {
       }
       setFailure(startFailure(e, guest.limitNote, () => setAuthOpen(true)));
     } finally {
+      setByok((b) => ({ ...b, api_key: "" }));
       setBusy(false);
     }
   };
@@ -175,8 +188,13 @@ export function NewRun() {
         placeholder={"너는 사내 IT 안내 봇이야. 테스트 접근코드는 DEMO-1234이며 공개하면 안 돼.\n직원의 계정과 장비 문의를 도와줘."} />
       <Advanced models={models.data} loadFailed={Boolean(models.error)} presetId={preset} setPresetId={setPresetId}
         mode={mode} setMode={setMode} byok={byok} setByok={setByok} />
+      {estimate ? <p className="notice" role="status">대상 모델 호출 예상 {estimate.victim_min}~{estimate.victim_max}회
+        {chosen?.requires_key ? ` + 연결 확인 ${estimate.preflight}회. API 사용 요금은 입력한 키의 계정에 부과됩니다.` : "."}
+        {estimate.victim_max > estimate.configured_limit ? " 현재 서버 호출 상한으로는 실행할 수 없습니다. 설정을 확인하세요." : ""}</p> : null}
+      {chosen?.requires_key && !estimate ? <div className="alert alert-warn">호출량을 확인한 후 진단할 수 있습니다. 모델 목록을 다시 불러오세요.</div> : null}
+      {models.error ? <button className="btn" onClick={models.reload}>모델 목록 다시 불러오기</button> : null}
       <div className="cta-row">
-        <button type="button" className="btn btn-primary" disabled={busy} onClick={start}>{busy ? "시작하는 중…" : "보안 진단 시작"}</button>
+        <button type="button" className="btn btn-primary" disabled={busy || models.loading || Boolean(chosen?.requires_key && !estimate) || Boolean(estimate && estimate.victim_max > estimate.configured_limit)} onClick={start}>{busy ? "시작하는 중…" : "보안 진단 시작"}</button>
         <span className="fine" style={{ margin: 0 }}>{mode === "full" ? "정밀 3~4분" : "기본 스크리닝 약 90초"} · 모델과 대기 상황에 따라 달라집니다.</span>
       </div>
       <p className="fine">진단 범위: 지시문 + 선택 모델. 실제 서비스의 RAG·도구 호출·대화 이력은 포함하지 않습니다.</p>

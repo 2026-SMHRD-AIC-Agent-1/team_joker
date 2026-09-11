@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import os
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Sequence
@@ -24,6 +25,18 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_MODEL_PATH = _REPO_ROOT / "detector" / "artifacts" / "joker-ko"
 
 MAX_CHARS = 20000  # 한 건 입력 상한(과도한 페이로드 방어). 토크나이저 max_len 과 별개.
+
+
+def aggregate_windows(scores, owners, count):
+    """입력별 모든 겹치는 토큰 구간 중 최대 위험 점수를 사용한다."""
+    result = [None] * count
+    if len(scores) != len(owners):
+        raise RuntimeError("토큰 구간과 점수 개수가 다릅니다.")
+    for score, owner in zip(scores, owners):
+        result[owner] = max(result[owner] or 0.0, float(score))
+    if any(s is None for s in result):
+        raise RuntimeError("검사하지 않은 입력이 있습니다.")
+    return result
 
 
 class DetectorUnavailable(RuntimeError):
@@ -84,6 +97,7 @@ class KoDetector:
         self._model = None
         self._tok = None
         self._pos = 1
+        self._inference_lock = threading.Lock()
 
     # ── 공개 API ────────────────────────────────────────────
     def available(self) -> bool:
@@ -113,7 +127,8 @@ class KoDetector:
         if not clean:
             return []
         fn = self._predict_fn or self._default_predict
-        scores = list(fn(clean))
+        with self._inference_lock:
+            scores = list(fn(clean))
         if len(scores) != len(clean):
             raise RuntimeError("예측 개수가 입력 개수와 다릅니다.")
         return [self._make(t, s) for t, s in zip(clean, scores)]
@@ -156,10 +171,16 @@ class KoDetector:
             for i in range(0, len(texts), 32):
                 batch = self._tok(
                     texts[i:i + 32], truncation=True, max_length=self.max_len,
+                    stride=min(128, self.max_len // 4), return_overflowing_tokens=True,
                     padding=True, return_tensors="pt",
                 )
-                p = torch.softmax(self._model(**batch).logits, dim=-1)[:, self._pos]
-                probs.extend(float(x) for x in p.tolist())
+                owners = batch.pop("overflow_to_sample_mapping").tolist()
+                scores = []
+                for start in range(0, len(owners), 32):
+                    window_batch = {k: v[start:start + 32] for k, v in batch.items()}
+                    p = torch.softmax(self._model(**window_batch).logits, dim=-1)[:, self._pos]
+                    scores.extend(p.tolist())
+                probs.extend(aggregate_windows(scores, owners, len(texts[i:i + 32])))
         return probs
 
 
@@ -176,4 +197,5 @@ def detect_payload(detector: KoDetector, text) -> dict:
         "threshold": d.threshold,
         "model": Path(d.model).name,
         "rule_flags": list(d.rule_flags),
+        "coverage": "all_token_windows",
     }

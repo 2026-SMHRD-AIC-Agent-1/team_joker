@@ -1,21 +1,12 @@
-# Chat Shield 테마. 화면 색을 코드에 흩뿌리지 않고 여기 한 곳에서 잡는다.
-# ★ 2026-09-09: 라이트 → 다크로 전환했다. Streamlit 이 자기 위젯(드롭다운·모달·코드블록·
-#   토스트)의 색을 이 base 값에서 가져가므로, CSS 로만 어둡게 칠하면 그 위젯들만 흰 채로
-#   남아 화면이 깨진다. 아래 4색은 streamlit_app.py 의 --bg / --surface / --ink / --brand 와
-#   같은 값이어야 한다(두 곳이 갈리면 위젯 경계에서 색이 튄다).
-# ⚠️ 프로젝터 대비: 어두운 배경은 밝은 회의실에서 대비가 죽는다. 발표장 조명이 밝으면
-#    프로젝터 밝기를 올리거나, 이 파일의 base 만 "light" 로 되돌려 확인해 볼 것.
+# Chat Shield: 밝은 문서형 테마. ui/styles.css의 기본 색과 일치시킨다.
 [theme]
-base = "dark"
-primaryColor = "#2E6BFF"            # Electric Blue. 버튼·강조·포커스
-backgroundColor = "#05080F"         # 미드나잇 네이비 → 블랙
-secondaryBackgroundColor = "#0B1120"
-textColor = "#EDF2FB"
+base = "light"
+primaryColor = "#285DDD"            # 주요 행동. 버튼·강조·포커스
+backgroundColor = "#F5F7FB"         # 페이지 배경
+secondaryBackgroundColor = "#FFFFFF"  # 기본 패널
+textColor = "#17243B"
 font = "sans serif"
 
-# ⚠️ [server] headless = true 를 여기에 넣지 마라.
-#    켜면 streamlit run 해도 브라우저 탭이 자동으로 안 열린다(서버는 떠 있는데 화면이 안 뜬 걸로 보인다).
-#    headless 는 서버·컨테이너에서만 쓰는 옵션이고, 그때는 실행할 때 --server.headless true 로 준다.
 
 [browser]
 gatherUsageStats = false

@@ -28,9 +28,9 @@
     },
     {
       "key": "asr",
-      "label": "진단 엔진 · 처방 전 → 후 ASR",
+      "label": "공격 성공률 · 보강 전 → 후",
       "value": "59.3% → 8.1%",
-      "detail": "개선 51.2%p · 동일 설정 2회 304건 판정 100% 일치",
+      "detail": "지시문 5개 × 공격 57개 · 개선 51.2%p · 재현성은 이전 38시드 설정에서 2회 304건 판정 100% 일치",
       "condition": "victim=qwen2.5:3b-instruct · 지시문 5개 · 공격 시드 57개 · temp 0 · seed 42",
       "source": "docs/asr_rerun_20260903_165716.md"
     },
@@ -46,9 +46,32 @@
       "key": "defense_matrix",
       "label": "두 층 모두 적용 시 잔여 유출",
       "value": "0건 / 50",
-      "detail": "95% CI 0.0–7.1% · 지시문 처방만 했을 때는 14.0%",
+      "detail": "95% CI 0.0–7.1% · 같은 50건에 보강만 14.0% · 탐지기만 8.0%",
       "condition": "held-out 시드 10개 (탐지 학습에 쓰지 않은 attack_id)",
-      "source": "docs/defense_matrix_*.md"
+      "source": "docs/defense_matrix_20260904_112951.md",
+      "steps": [
+        {
+          "label": "방어 없음",
+          "value": "58.0%",
+          "detail": "29/50 · 95% CI 44.2–70.6%"
+        },
+        {
+          "label": "지시문 보강만",
+          "value": "14.0%",
+          "detail": "7/50 · 95% CI 7.0–26.2%"
+        },
+        {
+          "label": "탐지기만",
+          "value": "8.0%",
+          "detail": "4/50 · 95% CI 3.2–18.8%"
+        },
+        {
+          "label": "둘 다",
+          "value": "0건 / 50",
+          "detail": "0/50 · 95% CI 0.0–7.1%"
+        }
+      ],
+      "steps_note": "한 층만으로는 남고, 둘 다 적용하면 0건이었습니다. 보강만과 탐지기만의 우열은 신뢰구간이 겹쳐 단정하지 않습니다."
     },
     {
       "key": "judge_f1",

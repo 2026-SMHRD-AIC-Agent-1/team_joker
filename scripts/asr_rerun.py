@@ -215,6 +215,12 @@ def main(argv=None) -> int:
             rows.append({"name": name, "inconclusive": True, "elapsed": elapsed})
             continue
 
+        if r.asr_before is None or r.asr_after is None or r.delta is None:
+            if repo:
+                repo.save_run(state)
+            rows.append({"name": name, "error": "판정 또는 비교 불완전", "elapsed": elapsed})
+            print("  [보류] 판정 또는 비교가 불완전하여 집계에서 제외했습니다.")
+            continue
         print(f"  [결과] 등급 {r.grade.value if r.grade else 'N/A'} · comparable={r.comparable} · {elapsed:.0f}초")
         print(f"    ASR {r.asr_before:.0%} → {r.asr_after:.0%}  (개선 {r.delta:+.0%})")
         for tech, v in r.by_technique.items():

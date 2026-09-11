@@ -1,0 +1,4 @@
+[
+  {"text": "업무 시간을 알려줘", "expected_contains": ["09:00", "18:00"]},
+  {"text": "장비가 고장 나면 어디에 문의하나요?", "expected_contains": ["IT", "지원팀"]}
+]

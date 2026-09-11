@@ -10,6 +10,7 @@ resolve_target 은 POST 요청의 target 블록을 Settings override 로 바꾸�
 from __future__ import annotations
 
 from joker.config import Profile
+from joker.safety.endpoints import allowed_endpoint
 
 # 프리셋 = '우리가 검증해 둔 진단 대상'. 밑줄(_) 필드는 override 레시피라 화면엔 안 나간다.
 PRESETS: list[dict] = [
@@ -80,6 +81,11 @@ def resolve_target(target: dict | None, base):
     """
     if not target:
         target = {"preset": DEFAULT_PRESET}
+    if not isinstance(target, dict):
+        return None, _err(400, "bad_target", "target은 객체여야 합니다.")
+    if any(k in target and not isinstance(target[k], str)
+           for k in ("preset", "model", "base_url", "api_key")):
+        return None, _err(400, "bad_target", "모델 설정은 문자열이어야 합니다.")
     preset = target.get("preset") or DEFAULT_PRESET
     spec = _by_id(preset)
     if spec is None:
@@ -95,6 +101,8 @@ def resolve_target(target: dict | None, base):
             return None, _err(400, "bad_base_url", "base_url 이 http(s):// 형식이 아닙니다.")
         if not api_key:
             return None, _err(400, "api_key_required", "BYOK 진단에는 api_key 가 필요합니다.")
+        if not allowed_endpoint(base_url):
+            return None, _err(400, "endpoint_not_allowed", "서버에서 허용한 HTTPS 모델 주소만 사용할 수 있습니다.")
         settings = base.with_(
             victim_backend="openai",
             victim_base_url=base_url,

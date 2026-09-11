@@ -7,6 +7,8 @@
 from __future__ import annotations
 
 import re
+import base64
+import unicodedata
 
 _PATTERNS = [
     re.compile(r"\bsk-[A-Za-z0-9_-]{8,}\b"),          # OpenAI 계열 키
@@ -35,12 +37,13 @@ def _value_variants(v: str) -> list[str]:
     ★ 개별 토큰('SEOUL' 단독)은 넣지 않는다 — 도시명·흔한 단어를 본문 전역에서 과잉
       마스킹하면 excerpt 가 못 읽게 된다. 토큰이 '함께' 나올 때만(값의 구조) 가린다.
     """
-    variants = {v}
+    variants = {v, v[::-1], base64.b64encode(v.encode()).decode(), v.encode().hex(),
+                unicodedata.normalize("NFD", v)}
     tokens = re.findall(r"[A-Za-z0-9]+", v)
     if len(tokens) >= 2:
         for sep in ("", " ", "\n", "-", " - ", "\n\n", "\t", ": "):
             variants.add(sep.join(tokens))
-    return [x for x in variants if len(x) >= 3]
+    return [x for x in variants if x]
 
 
 def redact_values(text: str, values, mask: str = _MASK) -> str:
@@ -62,5 +65,5 @@ def redact_values(text: str, values, mask: str = _MASK) -> str:
     out = text
     # 긴 변형부터 지운다(부분 문자열이 먼저 지워져 긴 변형을 못 잡는 일 방지)
     for v in sorted(set(variants), key=len, reverse=True):
-        out = out.replace(v, mask)
+        out = re.sub(re.escape(v), lambda _: mask, out, flags=re.IGNORECASE)
     return out

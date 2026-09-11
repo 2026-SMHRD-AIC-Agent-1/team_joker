@@ -40,7 +40,7 @@ class ProviderError(Exception):
 class OpenAICompatProvider:
     def __init__(self, *, base_url: str, api_key: str, model: str,
                  timeout: float = 120.0, max_tokens: int = 512,
-                 reasoning_effort: str = "low") -> None:
+                 reasoning_effort: str = "low", public_only: bool = False) -> None:
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
         self.model = model
@@ -48,6 +48,7 @@ class OpenAICompatProvider:
         self.max_tokens = max_tokens
         self.reasoning_effort = reasoning_effort
         self.restricted = _is_restricted(model)
+        self.public_only = public_only
 
     def _build_body(self, *, system: str, user: str, temperature: float, seed: int) -> dict:
         """요청 본문을 모델 규격에 맞게 조립한다(네트워크 없음 → 단위 테스트 대상)."""
@@ -82,7 +83,10 @@ class OpenAICompatProvider:
 
         start = time.monotonic()
         try:
-            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+            from joker.safety.endpoints import open_public
+            connection = (open_public(req, self.base_url, self.timeout) if self.public_only
+                          else urllib.request.urlopen(req, timeout=self.timeout))
+            with connection as resp:
                 payload = json.loads(resp.read().decode("utf-8"))
         except urllib.error.HTTPError as e:
             # ★ 2026-08-27: 예전엔 base_url 과 "HTTP Error 404" 만 찍었다. 그걸론 원인을 알 수 없다.
@@ -102,7 +106,7 @@ class OpenAICompatProvider:
                 f"LLM 호출 실패 [{e.code}] model={self.model!r} url={self.base_url}"
                 f"{hint}\n  서버 응답: {mask_secrets(body)}"
             ) from e
-        except (urllib.error.URLError, TimeoutError, OSError) as e:
+        except (urllib.error.URLError, TimeoutError, OSError, ValueError) as e:
             # 타임아웃(TimeoutError)은 URLError 가 아니라 OSError 계열 → 함께 잡는다
             raise ProviderError(
                 f"LLM 호출 실패 model={self.model!r} url={self.base_url}: {e}"

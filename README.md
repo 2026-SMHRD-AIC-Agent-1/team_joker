@@ -5,6 +5,18 @@
 > 제품명 **Chat Shield** · 한국어 탐지 모델 **JOKER-KO** · 팀/엔진 코드명 **JOKER**(패키지 `joker`)
 > 화면·문서·발표는 모두 "Chat Shield" 로 표기합니다.
 
+현재 기본 화면은 **React + TypeScript + Vite**입니다. Node.js로 웹을 실행하고,
+진단·탐지·인증·저장은 **Python FastAPI**가 담당합니다. Streamlit은 이전 화면 확인용으로 남겨 두었습니다.
+
+설치가 끝난 개발 환경에서는 프로젝트 루트에서 다음 명령으로 시작합니다.
+
+```bash
+cd web
+npm run dev:all
+```
+
+[웹 화면 열기](http://127.0.0.1:5173) · 처음 설치한다면 [실행 준비](#7-5분-안에-돌려보기) · [웹 기능·테스트 안내](web/README.md)
+
 ---
 
 ## 목차
@@ -161,7 +173,7 @@ flowchart TD
 |---|---|
 | 공격 성공률 | **59.3% → 8.1%** (개선 51.2%p) |
 | 측정 조건 | 대상 모델 `qwen2.5:3b-instruct` · 지시문 5개 · 공격 시드 57개 · temperature 0 · seed 42 |
-| 재현성 | 동일 설정 2회 실행, 304건 판정 **100% 일치** |
+| 재현성 | 동일 설정 2회 실행, 304건 판정 **100% 일치** (0827 · 공격 시드 38개 시절 측정 — 57개 설정에서 다시 잰 기록은 없음) |
 | 정상 업무 통과율 | **100% → 90.0%** (30/30 → 27/30 · 보강 후 95% CI 74.4–96.5%) |
 | 통과율 측정 조건 | 위 지시문 5개에 업무 정보를 붙인 판 × 질문 6개 · 보강문은 위 실행의 것을 글자 그대로 · 응답에 업무 사실 문자열이 있으면 통과 |
 
@@ -190,9 +202,13 @@ flowchart TD
 
 | 방어 구성 | 잔여 유출 |
 |---|---|
-| 아무것도 안 함 | 58% |
-| **지시문 보강만** | 14% |
+| 아무것도 안 함 | 58.0% (29 / 50) |
+| 지시문 보강만 | 14.0% (7 / 50) |
+| 탐지기만 | 8.0% (4 / 50) |
 | **보강 + 탐지기 둘 다** | **0건 / 50** (95% CI 0.0–7.1%) |
+
+한 층만으로는 남고, 둘 다 적용하면 0건이었습니다. 보강만(14.0%)과 탐지기만(8.0%)의 우열은
+신뢰구간이 겹쳐(7.0–26.2% · 3.2–18.8%) 단정하지 않습니다. 근거: `docs/defense_matrix_20260904_112951.md`
 
 측정 조건: held-out 시드 10개 — **탐지 모델 학습에 쓰지 않은** attack_id 로만 측정했습니다.
 
@@ -234,6 +250,7 @@ flowchart TD
 ### 준비물
 
 - Python 3.11 이상
+- Node.js 20 이상 및 npm
 - [Ollama](https://ollama.com) (로컬 모델용) — 없으면 `mock` 프로파일로 화면만 볼 수 있습니다
 
 ```bash
@@ -249,22 +266,52 @@ ollama pull qwen2.5:3b-instruct
 joker doctor
 ```
 
-### 화면으로 쓰기 (권장)
+### 웹 화면으로 쓰기 (권장 · Streamlit 불필요)
 
-터미널 두 개가 필요합니다.
+Node.js 20 이상을 준비하고 프로젝트 루트에서 실행합니다.
 
 ```bash
-# 터미널 1 — API 서버
-uvicorn "joker.api.app:create_app" --factory --port 8000
-
-# 터미널 2 — 화면
-streamlit run ui/streamlit_app.py
+cd web
+npm ci
+npm run build
+npm start
 ```
 
-브라우저에서 `http://localhost:8501` 로 접속합니다.
+[웹 화면 열기](http://127.0.0.1:8000). `npm start`가 Python 진단 API와 빌드된 React 화면을
+같은 서버로 제공합니다. `/runs/진단ID` 같은 상세 주소를 새로고침해도 열립니다.
+진단·탐지 엔진은 Python을 유지하고 모든 사용자 화면은 React/Vite로 실행합니다.
 
-> 모델 없이 화면만 보려면 `.env` 에 `JOKER_PROFILE=mock` 을 넣으세요.
-> 응답이 가짜라 수치는 의미가 없고, 화면 상단에 그렇다고 경고가 뜹니다.
+처음 설치한 환경에서 개발 서버를 실행하는 전체 명령은 다음과 같습니다.
+
+```bash
+# 프로젝트 루트에서 Python 설치·설정을 마친 뒤
+cd web
+npm ci
+npm run dev:all
+```
+
+API와 개발 화면이 함께 실행되며, 종료는 `Ctrl+C`입니다.
+
+개발할 때는 `web` 폴더에서 `npm run dev:all`을 실행하면 API와 Vite가 함께 시작됩니다.
+[개발 화면 열기](http://127.0.0.1:5173). 이미 API가 실행 중이면 `npm run dev`만 실행하세요.
+`Ctrl+C`로 함께 실행한 서버를 종료합니다.
+
+- `JOKER_API_PORT`: 함께 시작하는 API 포트 (기본 `8000`).
+- `JOKER_API_URL`: 개발 프록시의 API 주소. 브라우저는 항상 같은 출처의 `/api`를 호출합니다.
+- `JOKER_PYTHON`: Python 실행 파일. 기본은 프로젝트의 `.venv`를 사용합니다.
+- `JOKER_WEB_DIST`: 별도로 배포한 웹 빌드 폴더 (기본 `web/dist`).
+
+웹에서 회원가입·로그인·무료 체험·모델 선택/BYOK·진단 진행·리포트·공격 상세·보강안 복사/비교·
+탐지·대시보드·이력 검색/페이지 이동·진단 삭제·설정/검증 근거를 사용할 수 있습니다.
+오류 진단은 실행 중인 서버의 메모리에 보관되어 서버를 재시작하면 목록에서 사라집니다.
+완료된 진단과 계정은 기존 DB를 사용합니다.
+
+> 모델 없이 흐름을 확인하려면 `JOKER_PROFILE=mock npm start`로 실행하세요.
+> Mock은 가짜 진단 응답이며 실제 측정값으로 인용할 수 없습니다.
+> JOKER-KO 탐지는 별도로 학습 모델(`detector/artifacts/joker-ko`)과 `.[detect]` 설치가 필요합니다.
+
+기존 Streamlit 화면이 필요하면 `pip install -e ".[web,legacy-ui]"` 후 API 서버와
+`streamlit run ui/streamlit_app.py`를 각각 실행할 수 있습니다.
 
 ### 명령줄로 쓰기
 
@@ -353,9 +400,10 @@ flowchart TD
 | 진단 엔진 (RECON→ATTACK→JUDGE→PATCH→REPORT) | 완료 |
 | 탐지 모델 JOKER-KO (ML + 규칙 2중) | 완료 |
 | 실측 (ASR · F1 · 방어 조합 · OOD · 판정기) | 완료 |
-| API (엔드포인트 13개, 계약 v0.7) | 완료 |
-| 화면 6개 (인증 · 새 진단 · 결과 · 대시보드 · 진단 목록 · JOKER-KO 탐지기 · 설정) | 완료, UI/UX 다듬는 중 |
-| 자동화 테스트 | 458개 |
+| API (FastAPI, 웹 전환 추가 계약 포함) | 구현 완료 |
+| React 웹 7개 화면 (인증 · 새 진단 · 결과 · 대시보드 · 진단 목록 · 탐지기 · 설정) | 기능 전환 완료, 디자인 개편 예정 |
+| 자동화 테스트 | Python API·엔진·보안·웹 제공 테스트 + Vitest 웹 동작 테스트 |
+| 웹 실행 | `npm run dev:all` (개발), `npm run build` 후 `npm start` (빌드본) |
 
 > 학습된 탐지 모델(`detector/artifacts/joker-ko`)은 1.1GB 라 저장소에 커밋하지 않습니다.
 > 그 폴더가 없는 PC 에서는 **진단은 정상 동작하고, JOKER-KO 탐지기 화면만 안내가 뜹니다.**
@@ -372,8 +420,13 @@ model/
 │   ├── store/              SQLite 저장소 + 스키마
 │   ├── safety/             마스킹 · 로깅 · 엔드포인트 분리
 │   └── detect_ko*.py       JOKER-KO 탐지 (ML + 난독화 규칙)
-├── ui/
-│   ├── streamlit_app.py    화면 (엔진을 import 하지 않고 HTTP 로만 호출)
+├── web/                   기본 React + TypeScript 웹
+│   ├── src/pages/         인증·진단·결과·대시보드·목록·탐지·설정
+│   ├── src/components/    공용 UI와 리포트 컴포넌트
+│   ├── src/api/           HTTP 클라이언트와 응답 타입
+│   └── scripts/           Node.js 통합 실행 도구
+├── ui/                    이전 Streamlit 화면
+│   ├── streamlit_app.py    HTTP API를 사용하는 기존 화면
 │   └── styles.css          디자인 토큰 · 컴포넌트 스타일
 ├── data/
 │   ├── attacks/            공격 시드 YAML  ← 공격을 늘리려면 여기만
@@ -382,11 +435,11 @@ model/
 ├── detector/               탐지 모델 학습·평가 (artifacts 는 gitignore)
 ├── contracts/              API 응답 계약 (화면과 서버가 맞추는 기준)
 ├── scripts/                재측정 스크립트 (ASR 재실행 · 벤치 · 재현성 검사)
-├── tests/                  458개
+├── tests/                  Python 엔진·API·보안·웹 통합 테스트
 └── docs/                   측정 결과 문서 (스크립트가 생성)
 ```
 
-**의존 방향은 한 방향입니다.** `ui/` 는 `joker` 를 import 하지 않고 HTTP 로만 호출합니다.
+**화면과 엔진은 HTTP API로 연결됩니다.** 기본 `web/` 화면과 기존 `ui/` 화면은 엔진을 직접 import하지 않습니다.
 테스트가 이 경계를 강제하고 있어서, 화면이 엔진 내부를 몰래 부르는 일이 생기지 않습니다.
 
 ---

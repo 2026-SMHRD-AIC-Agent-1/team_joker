@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS tb_diagnosis (
     is_approximation    INTEGER,
     -- 대상 지시문
     target_prompt       TEXT NOT NULL,
+    privacy_version     INTEGER NOT NULL DEFAULT 0,
     target_prompt_hash  TEXT NOT NULL,               -- 중복 진단 캐시 키
     -- RECON 요약
     persona             TEXT,
@@ -62,6 +63,7 @@ CREATE TABLE IF NOT EXISTS tb_attempt (
     response_raw        TEXT,
     -- 판정
     verdict             TEXT,                        -- leak|block  (우리 판정기 출력)
+    verdict_reason      TEXT,
     verdict_by          TEXT,                        -- rule|llm    (규칙이 몇 % 처리했는가의 근거)
     leak_channel        TEXT,                        -- plain|reversed|base64|semantic
     was_gray            INTEGER NOT NULL DEFAULT 0,
@@ -176,3 +178,25 @@ CREATE TABLE IF NOT EXISTS tb_login_try (
 );
 
 CREATE INDEX IF NOT EXISTS ix_login_try ON tb_login_try(email_hash, at);
+
+-- ────────────────────────────────────────────────────────────
+-- 비회원 방문자 (무료 진단 1회 정책의 기준)  ★ 계약 v0.6
+-- ────────────────────────────────────────────────────────────
+-- 왜 테이블이 필요한가: '회원가입 없이 무료 진단 1회' 를 브라우저 상태값(session_state·
+-- localStorage)만으로 세면 새로고침 한 번, 시크릿 창 한 번에 무한이 된다. 즉 서버가 세야 한다.
+--
+-- ★ 무엇을 저장하고 무엇을 저장하지 않는가 (우리가 보안 진단 도구라서 더 엄격하게 잡는다):
+--   저장 O — guest_id(서버가 만든 난수), ip_hash(sha256(salt+IP) 앞 32자), 시각.
+--   저장 X — IP 원문 · User-Agent · 화면 크기 · 폰트 · canvas 등 지문(fingerprint) 요소 일체.
+--   ip_hash 는 되돌릴 수 없고, salt 는 서버 기동 시 환경변수(JOKER_GUEST_SALT)에서 온다.
+--
+-- ★ 이 방식의 한계는 화면과 보고서에 그대로 쓴다: 신원 확인이 없으므로 '사람당 1회' 가 아니라
+--   '(게스트 토큰) 또는 (IP 해시)' 단위 1회다. 다른 회선 + 새 브라우저면 1회가 더 생긴다.
+CREATE TABLE IF NOT EXISTS tb_guest (
+    guest_id            TEXT PRIMARY KEY,            -- 서버가 발급한 난수(URL-safe)
+    ip_hash             TEXT,                        -- sha256(salt + IP)[:32]. 원문 IP 는 저장 안 함
+    created_at          TEXT NOT NULL,
+    last_seen_at        TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS ix_guest_ip ON tb_guest(ip_hash);

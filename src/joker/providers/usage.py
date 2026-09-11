@@ -37,7 +37,7 @@ def estimate_calls(n_seeds: int, *, full: bool, screening_size: int = 18) -> dic
     judge 는 gray 로 빠진 응답만 부르므로 이것도 사전에 정확히 알 수 없다.
     """
     v_max = n_seeds * _ROUNDS
-    v_min = v_max if full else screening_size * _ROUNDS
+    v_min = v_max if full else min(n_seeds, screening_size) * _ROUNDS
     return {
         "victim_min": v_min,
         "victim_max": v_max,

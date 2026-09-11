@@ -205,12 +205,13 @@ def _cmd_diagnose(args) -> int:
         if t.model_notice:
             print(f"[주의] {t.model_notice}")
     print(f"[결과] 등급 {grade} · comparable={r.comparable}")
-    print(f"  ASR  처방 전 {r.asr_before:.0%} → 처방 후 {r.asr_after:.0%}   (개선 {r.delta:+.0%})")
+    pct = lambda v: f"{v:.0%}" if v is not None else "판정 보류"
+    print(f"  ASR  처방 전 {pct(r.asr_before)} → 처방 후 {pct(r.asr_after)}")
     print(f"  취약 기법: {', '.join(t.value for t in state['vulnerable_techniques']) or '없음'}")
     print(f"  적용 패턴: {', '.join(r.applied_patterns) or '없음'}")
     print("  기법별 (before → after):")
     for tech, v in r.by_technique.items():
-        print(f"    {tech:13s} {v['before']:5.0%} → {v['after']:5.0%}  (n={v['total']})")
+        print(f"    {tech:13s} {pct(v['before'])} → {pct(v['after'])}  (n={v['total']})")
     _print_usage()
 
     if getattr(args, "save", False):

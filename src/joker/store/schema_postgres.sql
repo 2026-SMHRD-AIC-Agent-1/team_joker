@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS tb_diagnosis (
     is_approximation    BOOLEAN,                     -- 레거시(fidelity 에서 파생)
     -- 대상 지시문
     target_prompt       TEXT NOT NULL,
+    privacy_version     INTEGER NOT NULL DEFAULT 0,
     target_prompt_hash  TEXT NOT NULL,
     -- RECON 요약
     persona             TEXT,
@@ -42,11 +43,14 @@ CREATE TABLE IF NOT EXISTS tb_diagnosis (
     asr_delta           DOUBLE PRECISION,
     patched_prompt      TEXT,
     -- 소유자 (계약 v0.4). NULL = 비회원 진단
-    user_id             TEXT
+    user_id             TEXT,
+    -- 비회원 진단을 실행한 방문자 (계약 v0.6). 무료 1회 카운트 + 비회원 결과 열람 범위
+    guest_id            TEXT
 );
 
 CREATE INDEX IF NOT EXISTS ix_diagnosis_hash  ON tb_diagnosis(target_prompt_hash);
 CREATE INDEX IF NOT EXISTS ix_diagnosis_owner ON tb_diagnosis(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS ix_diagnosis_guest ON tb_diagnosis(guest_id, created_at DESC);
 
 -- ────────────────────────────────────────────────────────────
 -- 공격 1회 시도 ★ 핵심 테이블
@@ -62,6 +66,7 @@ CREATE TABLE IF NOT EXISTS tb_attempt (
     response_raw        TEXT,
     -- 판정
     verdict             TEXT,                        -- leak|block
+    verdict_reason      TEXT,
     verdict_by          TEXT,                        -- rule|llm
     leak_channel        TEXT,                        -- plain|reversed|base64|semantic
     was_gray            BOOLEAN NOT NULL DEFAULT FALSE,
@@ -157,3 +162,16 @@ CREATE TABLE IF NOT EXISTS tb_login_try (
 );
 
 CREATE INDEX IF NOT EXISTS ix_login_try ON tb_login_try(email_hash, at);
+
+-- ────────────────────────────────────────────────────────────
+-- 비회원 방문자 (무료 진단 1회 정책의 기준) ★ 계약 v0.6
+-- ────────────────────────────────────────────────────────────
+-- ★ IP 원문·User-Agent·지문(fingerprint) 요소는 저장하지 않는다. 되돌릴 수 없는 ip_hash 만.
+CREATE TABLE IF NOT EXISTS tb_guest (
+    guest_id            TEXT PRIMARY KEY,
+    ip_hash             TEXT,
+    created_at          TIMESTAMPTZ NOT NULL,
+    last_seen_at        TIMESTAMPTZ NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS ix_guest_ip ON tb_guest(ip_hash);

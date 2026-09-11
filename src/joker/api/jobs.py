@@ -12,11 +12,20 @@ from __future__ import annotations
 
 import datetime
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 
 from joker.safety.logging import get_logger
 
 _log = get_logger("joker.api")
+
+
+class QueueFull(Exception):
+    pass
+
+
+class QueueExpired(Exception):
+    pass
 
 
 def classify_error(exc: BaseException) -> dict:
@@ -34,6 +43,9 @@ def classify_error(exc: BaseException) -> dict:
     from joker.providers.budget import BudgetExceeded
     from joker.providers.openai_compat import ProviderError
 
+    if isinstance(exc, QueueExpired):
+        return {"code": "queue_expired", "message": "진단 대기 시간이 초과되었습니다. 잠시 후 다시 시도하세요."}
+
     if isinstance(exc, ProviderError):
         return {"code": "target_unreachable",
                 "message": "대상 모델에 연결하지 못했습니다."}
@@ -45,12 +57,15 @@ def classify_error(exc: BaseException) -> dict:
 
 class Job:
     def __init__(self, run_id: str, target: dict, estimated: dict,
-                 user_id: str | None = None) -> None:
+                 user_id: str | None = None, guest_id: str | None = None) -> None:
         self.run_id = run_id
+        self.registered_at = time.monotonic()
         # 진행 중(아직 DB 에 없는) 진단의 소유자. 완료본은 tb_diagnosis.user_id 가 진실이지만,
         # 폴링 구간에서는 DB 에 행이 없어 여기서만 소유자를 알 수 있다 → 이 값이 없으면
         # '진행 중인 남의 진단'은 run_id 만 알면 그대로 보인다.
         self.user_id = user_id
+        # 비회원 진단의 방문자 키. 같은 이유로 폴링 구간의 열람 범위를 여기서 잡는다.
+        self.guest_id = guest_id
         self.target = target          # target 블록 dict
         self.estimated = estimated    # estimate_calls() 결과
         self.status = "running"       # running | done | error
@@ -78,17 +93,47 @@ class Job:
 
 
 class JobRegistry:
-    def __init__(self) -> None:
+    def __init__(self, max_pending: int = 8, queue_timeout: float = 300) -> None:
         self._jobs: dict[str, Job] = {}
         self._lock = threading.Lock()
+        self.max_pending = max_pending
+        self.queue_timeout = queue_timeout
         self._pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="joker-diag")
 
     def register(self, run_id: str, target: dict, estimated: dict,
-                 user_id: str | None = None) -> Job:
-        job = Job(run_id, target, estimated, user_id)
+                 user_id: str | None = None, guest_id: str | None = None) -> Job:
+        job = Job(run_id, target, estimated, user_id, guest_id)
         with self._lock:
+            # 완료 기록은 DB가 보관한다. 메모리의 상태 기록은 한 시간만 유지한다.
+            cutoff = time.monotonic() - 3600
+            self._jobs = {k: j for k, j in self._jobs.items()
+                          if j.status == "running" or j.registered_at >= cutoff}
+            active = [j for j in self._jobs.values() if j.status == "running"]
+            if len(active) >= self.max_pending or any(
+                (user_id is not None and j.user_id == user_id) or
+                (guest_id is not None and j.guest_id == guest_id) for j in active
+            ):
+                raise QueueFull("진행 중인 진단 또는 대기열 상한")
             self._jobs[run_id] = job
         return job
+
+    def in_flight_for_guest(self, guest_id: str) -> int:
+        """이 방문자가 지금 돌리고 있는(대기 포함) 진단 수.
+
+        ★ 무료 1회 정책의 '중복 실행 방지' 는 여기서 나온다. DB 카운트만 보면 진단이
+          3~4분 도는 동안 행이 없어서, 새로고침·중복 클릭으로 몇 건이든 시작된다.
+        """
+        with self._lock:
+            return sum(1 for j in self._jobs.values()
+                       if j.guest_id == guest_id and j.status == "running")
+
+    def running_run_id_for_guest(self, guest_id: str) -> str | None:
+        """진행 중인 진단의 run_id — 화면이 '진행 중인 그 진단' 으로 되돌아갈 수 있게."""
+        with self._lock:
+            for j in self._jobs.values():
+                if j.guest_id == guest_id and j.status == "running":
+                    return j.run_id
+        return None
 
     def submit(self, run_id: str, work) -> None:
         """work() = 실제 진단+DB 저장(무인자). 스레드라 예외를 전파 못 하므로 잡 상태로만 남긴다."""
@@ -96,6 +141,9 @@ class JobRegistry:
 
     def _run(self, run_id: str, work) -> None:
         try:
+            job = self.get(run_id)
+            if job and time.monotonic() - job.registered_at > self.queue_timeout:
+                raise QueueExpired()
             work()
             self._set(run_id, "done")
             _log.info("diagnose done run_id=%s", run_id)
@@ -104,6 +152,10 @@ class JobRegistry:
             self._set(run_id, "error", err)
             # ★ 예외 메시지에 base_url·키가 섞일 수 있어 트레이스백 원문은 안 찍는다. 코드만 남긴다.
             _log.error("diagnose failed run_id=%s code=%s", run_id, err["code"])
+
+    def discard(self, run_id: str) -> None:
+        with self._lock:
+            self._jobs.pop(run_id, None)
 
     def _set(self, run_id: str, status: str, error: dict | None = None) -> None:
         with self._lock:
@@ -116,6 +168,17 @@ class JobRegistry:
     def get(self, run_id: str) -> Job | None:
         with self._lock:
             return self._jobs.get(run_id)
+
+    def visible_rows(self, user_id=None, guest_id=None) -> list[dict]:
+        """Only return the caller's unfinished/recent failed jobs; completed rows live in DB."""
+        with self._lock:
+            return [{"run_id": j.run_id, "created_at": j.created_at, "status": j.status,
+                     "target_model": j.target.get("model"), "backend": j.target.get("backend"),
+                     "fidelity": j.target.get("fidelity"), "grade": None,
+                     "asr_before": None, "asr_after": None, "action_required": 0}
+                    for j in self._jobs.values() if j.status in ("running", "error") and
+                    ((user_id is not None and j.user_id == user_id) or
+                     (user_id is None and guest_id is not None and j.user_id is None and j.guest_id == guest_id))]
 
     def shutdown(self, wait: bool = False) -> None:
         """서버가 내려갈 때 워커 풀을 정리한다.

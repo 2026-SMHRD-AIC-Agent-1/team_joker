@@ -26,6 +26,7 @@ export function Sidebar() {
           <Link className="btn btn-primary btn-block" to="/diagnose">＋ 새 진단</Link>
           <div className="sb-cap">메뉴</div>
           <NavLink className={({ isActive }) => `nav-item${isActive ? " active" : ""}`} to="/" end>대시보드</NavLink>
+          <NavLink className={({ isActive }) => `nav-item${isActive ? " active" : ""}`} to="/history">진단 목록</NavLink>
           <NavLink className={({ isActive }) => `nav-item${isActive ? " active" : ""}`} to="/detect">JOKER-KO 탐지기</NavLink>
           <div className="sb-rule" />
           <div className="sb-user">👤 {shown}</div>
@@ -44,6 +45,7 @@ export function Sidebar() {
         </>
       )}
       <div className="sb-rule" />
+      <NavLink className={({ isActive }) => `nav-item${isActive ? " active" : ""}`} to="/settings">설정</NavLink>
       <StatusChip />
       <div className="sb-foot">3팀 JOKER · web</div>
     </aside>

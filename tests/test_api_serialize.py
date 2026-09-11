@@ -20,7 +20,7 @@ MEMBER = {"user_id": "u1", "email": "a@b.com"}
 def _done_run() -> dict:
     """Repository.load_run() 이 done 진단에 대해 돌려주는 모양을 합성."""
     return {
-        "run_id": "run_x", "created_at": "2026-08-31T10:00:00", "inconclusive": 0,
+        "privacy_version": 1, "run_id": "run_x", "created_at": "2026-08-31T10:00:00", "inconclusive": 0,
         "grade": "C", "comparable": 1, "asr_before": 0.56, "asr_after": 0.12, "asr_delta": 0.44,
         "target_prompt_hash": "sha256:abc", "persona": "한비", "org": "한빛물산",
         "model_victim": "qwen2.5:3b-instruct", "backend": "local", "target_preset": "local_qwen3b",
@@ -48,7 +48,7 @@ def _done_run() -> dict:
 
 def _inconclusive_run() -> dict:
     return {
-        "run_id": "run_y", "created_at": "t", "inconclusive": 1, "grade": None,
+        "privacy_version": 1, "run_id": "run_y", "created_at": "t", "inconclusive": 1, "grade": None,
         "model_victim": "qwen2.5:3b-instruct", "backend": "local", "target_preset": "local_qwen3b",
         "fidelity": "proxy_model", "target_prompt_hash": "h", "persona": None, "org": None,
         "attempts": [], "assets": [],
