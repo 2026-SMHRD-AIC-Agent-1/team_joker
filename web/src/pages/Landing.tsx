@@ -30,12 +30,6 @@ function MetricStrip() {
 // ★ 이름만 둔다 — 예시 문구까지 적으면 첫 화면이 읽을 거리가 된다. 실물은 진단 결과의 '공격 기법' 에서 본다.
 const TECHNIQUES = ["역할 위장", "권위·긴급성 사칭", "출력 형식 강제", "난독화", "간접 지시", "문서 경유"];
 
-const STEPS: [string, string, string][] = [
-  ["01", "지시문을 넣으세요", "예시로도 시작할 수 있습니다."],
-  ["02", "발견된 문제를 확인하세요", "요청과 실제 응답을 증거로 봅니다."],
-  ["03", "보강하고 다시 시험하세요", "같은 공격을 다시 던져 비교합니다."],
-];
-
 export function Landing() {
   return <>
     <section className="landing-hero">
@@ -44,9 +38,10 @@ export function Landing() {
         <h1>지켜야 할 정보,<br />끝까지 <span>지킬 수 있도록.</span></h1>
         <p>공격은 언어가 아니라 <b>구조</b>로 들어옵니다.<br />
           그 구조를 실제로 던지고, 고친 지시문에 <b>같은 공격을 다시 던져</b> 비교합니다.</p>
+        {/* ★ '진단 과정 살펴보기 ↓' 는 지웠다 — 가리키던 #how-it-works 절이 없어졌고,
+            남았다면 죽은 앵커가 된다. 과정은 오른쪽 카드와 발표자료가 보여 준다. */}
         <div className="hero-actions">
           <Link className="btn btn-primary" to="/diagnose">무료로 진단 시작하기 →</Link>
-          <a className="btn" href="#how-it-works">진단 과정 살펴보기 ↓</a>
         </div>
         <div className="hero-assurance">회원가입 없이 1회 체험 · 카드 정보 불필요</div>
       </div>
@@ -64,23 +59,12 @@ export function Landing() {
 
     <MetricStrip />
 
-    <section className="landing-section" id="how-it-works">
-      <span className="eyebrow">HOW IT WORKS</span>
-      <h2>복잡한 보안 진단을,<br />명확한 세 단계로.</h2>
-      <div className="landing-grid">
-        {STEPS.map(([n, t, d]) => (
-          <article className="landing-card" key={n}><span>{n}</span><h3>{t}</h3><p>{d}</p></article>
-        ))}
-      </div>
-    </section>
-
-    <section className="landing-section tools-section">
-      {/* ★ 두 층의 상세 설명은 리포트의 관계도 한 곳에만 둔다 — 같은 문장이 세 곳에 있었다(0914). */}
-      <div>
-        <span className="eyebrow">TWO LAYERS OF PROTECTION</span>
-        <h2>지시문부터 입력까지.<br />각 단계에 필요한 검사.</h2>
-        <p>한 층만으로는 남습니다. 그래서 기능이 두 개입니다.</p>
-      </div>
+    {/* ★ 0914: 섹션 네 개(세 단계·두 층·검사 범위·마지막 CTA)를 한 덩어리로 합쳤다.
+        글자는 이미 적었는데 섹션마다 큰 패딩과 반쯤 빈 카드가 3.6화면을 먹고 있었다.
+        설명은 발표자료가 맡는다 — 이 화면이 할 일은 '무엇인지 + 어디로 들어가는지' 둘이다.
+        ★ 마지막 CTA 는 히어로 버튼과 같은 링크였다(같은 버튼에 0.4화면). 삭제.
+        ★ 검사 범위 한 줄은 남긴다 — 첫 화면에서 '무엇을 시험하지 않는지' 는 말해야 한다. */}
+    <section className="landing-foot">
       <div className="tools-grid">
         <Link to="/diagnose" className="tool-card">
           <span className="pill">배포 전 · 지시문 진단</span>
@@ -93,26 +77,11 @@ export function Landing() {
           <p>문구 하나를 넣어 판정을 확인합니다.</p>
         </Link>
       </div>
-    </section>
-
-    <section className="landing-section">
-      <span className="eyebrow">EVIDENCE &amp; SCOPE</span>
-      <h2>결과와 함께, 검사 범위도 분명하게.</h2>
       <p className="scope-copy">지시문과 선택한 모델을 시험합니다. 실제 서비스의 RAG·도구 호출·대화 이력은 포함하지 않습니다.</p>
-      {/* ★ 접는다 — 위 실측 띠가 같은 수치 4개(asr·ood_recall·fpr·benign_pass)를 이미 펼쳐 보인다.
-          펼친 카드까지 두면 첫 화면에서 같은 숫자를 두 번 읽게 된다. 카드에만 있는 것은
-          defense_matrix·public_detector 두 개라, 그 둘을 보려는 사람만 열면 된다. */}
       <details className="xp">
         <summary>검증 근거 자세히 — 두 층 조합 · 공개 탐지기 대비 · 측정 조건</summary>
         <div className="xp-body"><ToolEvidence heading={false} /></div>
       </details>
-    </section>
-
-    <section className="landing-cta">
-      <span className="eyebrow">START WITH A SINGLE PROMPT</span>
-      <h2>첫 진단, 지시문 하나면 됩니다.</h2>
-      <p>예시 지시문으로도 시작할 수 있습니다.</p>
-      <Link className="btn btn-primary" to="/diagnose">지금 무료로 진단하기 →</Link>
     </section>
   </>;
 }

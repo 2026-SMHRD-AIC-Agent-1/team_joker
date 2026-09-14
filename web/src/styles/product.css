@@ -1275,3 +1275,29 @@ a,button {
   .donut-wrap { flex-direction: column; align-items: stretch }
   .donut { align-self: center }
 }
+
+/* ───────── 0914 6차 — 랜딩을 한 화면으로. 섹션 네 개를 한 덩어리로 합친다. ───────── */
+.landing-foot {
+  padding: 40px 0 8px
+}
+.landing-foot .tools-grid {
+  grid-template-columns: 1fr 1fr;
+  gap: 16px
+}
+.landing-foot .scope-copy {
+  margin: 22px 0 14px;
+  font-size: 13.5px;
+  line-height: 1.75;
+  color: #9eafca
+}
+.landing-foot > details {
+  margin: 0
+}
+@media (max-width: 760px) {
+  .landing-foot .tools-grid {
+    grid-template-columns: 1fr
+  }
+  .landing-foot {
+    padding-top: 28px
+  }
+}
