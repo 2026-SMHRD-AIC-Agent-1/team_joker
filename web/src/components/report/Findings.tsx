@@ -33,7 +33,7 @@ export function Findings({ runId, rep, gated, onSignup }: { runId: string; rep: 
   const setFilter = (f: FindingFilter) => { filterCache.set(runId, f); setFilterState(f); };
 
   const header = (
-    <Section title="발견 항목"
+    <Section title="전체 발견 항목"
       desc={<>공격 1건이 발견 항목 1건입니다. 처음에는 <b>지금 조치·재검증이 필요한 상태</b>만 켜 둡니다 — 상태 필터를 모두 켜면 전체 항목으로 돌아갑니다.</>} />
   );
 
@@ -46,7 +46,7 @@ export function Findings({ runId, rep, gated, onSignup }: { runId: string; rep: 
         {header}
         <Gate title={need ? `공격별 상세 증거 — 조치가 필요한 ${need}건의 공격 문구와 판정 근거`
           : `공격별 상세 증거 — 던진 공격 ${n} 전부의 문구와 판정 근거`}
-          total={n} hidden={n} unlock={gated.unlock} decoy="attempts" onSignup={onSignup} />
+          total={n} hidden={n} unlock={gated.unlock} decoy="attempts" compact onSignup={onSignup} />
       </>
     );
   }
@@ -98,7 +98,7 @@ export function Findings({ runId, rep, gated, onSignup }: { runId: string; rep: 
           <b>필터 초기화</b> 를 누르면 기본 조건으로 돌아갑니다.</div>
       ) : (
         <div className="tbl-wrap">
-          <table className="tbl" aria-label="발견 항목">
+          <div className="table-scroll"><table className="tbl" aria-label="발견 항목">
             <thead><tr><th>상태</th><th>공격 ID</th><th>기법</th><th>유출 채널</th><th>판정 근거</th><th /></tr></thead>
             <tbody>
               {rows.map((f) => (
@@ -112,7 +112,7 @@ export function Findings({ runId, rep, gated, onSignup }: { runId: string; rep: 
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         </div>
       )}
     </>

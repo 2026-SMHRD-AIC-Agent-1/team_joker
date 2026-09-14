@@ -82,14 +82,17 @@ export function AuthPage() {
       <div className="auth-grid">
         <div>
           <div className="auth-brand"><span className="dot" /><span className="m">Chat Shield</span></div>
-          <div className="input-intro">챗봇의 정보가 새는 순간,<br />증거로 확인하세요.</div>
-          <div className="auth-desc">시스템 지시문을 한국어 공격으로 시험합니다. 어떤 요청에 정보가 노출됐는지 찾고,
-            보강 후에도 같은 문제가 남는지 확인하세요.</div>
-          {[["1", "지시문 넣기", "챗봇의 역할과 규칙을 붙여넣으세요."],
-            ["2", "유출 증거 확인", "공격 요청과 실제 응답을 나란히 확인하세요."],
-            ["3", "보강하고 다시 검증", "변경 내용과 남은 위험을 함께 확인하세요."]].map(([n, t, d]) => (
+          {/* ★ 서비스 소개 문구는 첫 화면(/)에만 둔다 — 여기에 또 쓰면 같은 말을 문구만 다르게 두 번 하게 된다.
+              이 화면이 답할 것은 "왜 계정이 필요한가" 하나다. */}
+          <div className="input-intro">계정이 있으면<br />진단 기록이 남습니다.</div>
+          <div className="auth-desc">비회원도 무료 진단 1회는 그대로 실행됩니다. 계정은 <b>상세 증거·보강안 전문</b>을 열고,
+            지난 진단을 다시 찾아보기 위한 것입니다.</div>
+          {[["1", "지금 실행한 진단이 그대로 열립니다", "가입 직후 방금 결과가 이어집니다 — 다시 진단하지 않아도 됩니다."],
+            ["2", "상세 증거와 보강안 전문", "공격 문구·응답 전문·원본↔보강안 비교가 열립니다."],
+            ["3", "이메일과 비밀번호만", "이름·휴대폰번호·생년월일은 수집하지 않습니다."]].map(([n, t, d]) => (
             <div className="next-action" key={n}><span className="step">{n}</span><div><b>{t}</b><p>{d}</p></div></div>
           ))}
+          <p className="fine"><Link to="/">← 서비스가 무엇인지 먼저 보기</Link></p>
         </div>
         <div className="authbox">
           <div className="auth-panel-t">진단 기록과 보강안을 이어서 보려면 로그인하세요.</div>

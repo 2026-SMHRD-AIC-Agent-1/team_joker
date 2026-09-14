@@ -48,7 +48,7 @@ python detector/evaluate.py --finetuned detector/artifacts/joker-ko-nv
 # (Windows CMD 는 줄바꿈 \ 안 되니 --benign 목록을 한 줄로 이어서)
 ```
 
-## 학습 완료 — 실측 결과 (2026-09-03)
+## 학습 완료 — 실측 결과 (2026-09-03 · 2026-09-14 재검증)
 정상 765건(팀원 정상문구 5종 합침) + 공격 57시드로 학습. test 세트 F1:
 
 | 데이터 | 기성 모델(원본) F1 | JOKER-KO F1 |
@@ -56,7 +56,17 @@ python detector/evaluate.py --finetuned detector/artifacts/joker-ko-nv
 | 변형 포함 (공격 105) | 0.000 | 0.981 |
 | 변형 제외 (공격 31) | 0.000 | 1.000 |
 
-- 기성 Prompt Guard 2는 우리 공격에 median 확률 0.001 = **한국어를 진짜로 못 봄**(문턱 문제 아님). 특화하니 잡음.
+- Prompt Guard 2는 우리 공격에 median 확률 0.001 = 그 모델은 한국어를 못 봄(문턱 문제 아님).
+- **⚠️ 0914 재검증 — 이 표를 발표 헤드라인으로 쓰지 말 것.** 두 가지가 드러났다.
+  1. **test 세트가 쉽다.** 공격 105행의 고유 시드는 **10개**뿐이고, 공격(중앙값 89자)과
+     정상(중앙값 26자)이 길이로 거의 갈린다. **"길이 ≥48자면 공격" 규칙도 F1 0.952**가 나온다.
+     → `python scripts/baseline_compare.py`
+  2. **"기성 모델은 한국어를 못 본다"는 일반화가 틀렸다.** llm-guard 기본 모델
+     `protectai/deberta-v3-base-prompt-injection-v2`(영어 전용이라고 적힌 모델)는 우리 OOD 공격에
+     median 확률 0.999 를 준다. 0.5 문턱에서 42/49 로 우리(39/49)보다 높다.
+     **다만 그 대가로 정상 116건 중 29건(25.0%)을 함께 막는다.** 오탐을 0%로 맞추면 0/49.
+     AUC 는 OOD 0.874 vs 우리 0.996. → `python scripts/operating_point.py`
+  - 인용은 **"정상 업무를 막지 않으면서 잡는다"**(오탐 0% · AUC 0.996)로 한다.
 - **한계(정직):** test가 공격 생성기와 같은 분포 → F1은 상한선. 역순·초성분해·base64 난독화는 일부 미탐(변형포함 FN 4건이 그 유형).
 - 모델 저장: `artifacts/joker-ko`(변형포함) · `artifacts/joker-ko-nv`(변형제외). 둘 다 `.gitignore`(대용량).
 - 정상 더 필요하면 `fetch_benign.py`(공개데이터, MIT) 로 보강.

@@ -8,7 +8,7 @@ import { BeforeAfter } from "./BeforeAfter";
 export function RunTable({ runs, label }: { runs: RunRow[]; label: string }) {
   return (
     <div className="tbl-wrap">
-      <table className="tbl" aria-label={label}>
+      <div className="table-scroll"><table className="tbl" aria-label={label}>
         <thead>
           <tr><th>상태</th><th>진단 식별자</th><th>등급</th><th>보강 전 → 후</th><th>진단 대상 모델</th><th /></tr>
         </thead>
@@ -32,7 +32,7 @@ export function RunTable({ runs, label }: { runs: RunRow[]; label: string }) {
             );
           })}
         </tbody>
-      </table>
+      </table></div>
     </div>
   );
 }

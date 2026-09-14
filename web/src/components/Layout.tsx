@@ -19,7 +19,7 @@ export function Layout() {
         <NavLink to="/" end>서비스 소개</NavLink><NavLink to="/diagnose">지시문 진단</NavLink><NavLink to="/detect">입력문 검사</NavLink>
         {loggedIn ? <><NavLink to="/dashboard">대시보드</NavLink><NavLink to="/history">진단 기록</NavLink></> : null}
         {loggedIn ? <><NavLink to="/settings">설정</NavLink><button className="btn btn-link" onClick={async () => { await logout(); nav("/"); }}>로그아웃</button></> : <NavLink to="/login">로그인</NavLink>}
-        <Link className="btn btn-primary" to="/diagnose">{loggedIn ? "새 진단 시작" : "무료 진단 시작"} ↗</Link>
+        <Link className="btn btn-primary" to="/diagnose">{loggedIn ? "새 진단 시작" : "무료 진단 시작"} →</Link>
       </nav>
     </div></header>
     <main className="main" id="main-content"><div className={`main-inner ${location.pathname === "/" ? "landing-wrap" : ""}`}>

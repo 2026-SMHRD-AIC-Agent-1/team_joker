@@ -19,7 +19,7 @@ export function History() {
   const deleted = (useLocation().state as { deleted?: string } | null)?.deleted;
   const notice = deleted ? <div className="notice" role="status" style={{ marginBottom: 12 }}>진단을 삭제했습니다 · <span className="mono">{deleted}</span></div> : null;
   const header = (
-    <PageHeader title="진단 목록" desc="이 계정으로 저장된 진단입니다. 행을 열면 리포트로 이동합니다.">
+    <PageHeader eyebrow="ALL RUNS" title="진단 목록" desc="이 계정으로 저장된 진단입니다. 행을 열면 리포트로 이동합니다.">
       <button className="btn" disabled={loading} onClick={reload}>새로고침</button>
       <Link className="btn btn-primary" to="/diagnose">＋ 새 진단</Link>
     </PageHeader>

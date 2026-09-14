@@ -49,7 +49,7 @@ export function avgText(deltas: number[]): { text: string; color?: string } {
 export function Dashboard() {
   const { data, error, loading, reload } = useApi<RunList>("/api/runs");
   const header = (
-    <PageHeader title="대시보드" desc="이 계정으로 실행한 진단의 현황입니다.">
+    <PageHeader eyebrow="OVERVIEW" title="대시보드" desc="이 계정으로 실행한 진단의 현황입니다.">
       <button className="btn" disabled={loading} onClick={reload}>새로고침</button>
       <Link className="btn btn-primary" to="/diagnose">＋ 새 진단</Link>
     </PageHeader>
@@ -75,6 +75,9 @@ export function Dashboard() {
 
   const s = dashStats(runs);
   const avg = avgText(s.deltas);
+  const openTop = s.need ? [...s.openRuns].sort((a, b) => actionRequired(b) - actionRequired(a)).slice(0, 5) : [];
+  const shown = new Set(openTop.map((r) => r.run_id));
+  const recent = runs.filter((r) => !shown.has(r.run_id)).slice(0, 5);
   return (
     <>
       {header}
@@ -103,12 +106,12 @@ export function Dashboard() {
       {/* ★ 지표 줄 바로 아래 — 시연 첫 화면에서 스크롤 없이 보인다(0911 결정). */}
       <ToolEvidence />
 
+      {/* ★ 0914: 아래 '최근 진단' 과 같은 행이 두 번 그려지던 문제 — 여기 이미 보인 진단은 아래에서 뺀다.
+          이 도구는 대부분의 진단에 조치가 남아 표가 통째로 겹쳤다. */}
       {s.need ? (
         <>
           <Section title="조치가 필요한 진단" desc="미해결이거나 보강 후 새로 뚫린 항목이 남아 있는 진단입니다 — JOKER-KO 탐지기 배치 대상입니다." />
-          <div style={{ marginTop: 8 }}>
-            <RunTable label="조치가 필요한 진단" runs={[...s.openRuns].sort((a, b) => actionRequired(b) - actionRequired(a)).slice(0, 5)} />
-          </div>
+          <div style={{ marginTop: 8 }}><RunTable label="조치가 필요한 진단" runs={openTop} /></div>
         </>
       ) : null}
 
@@ -121,9 +124,14 @@ export function Dashboard() {
         </>
       ) : null}
 
-      <Section title="최근 진단" />
-      <div style={{ marginTop: 8 }}><RunTable label="최근 진단" runs={runs.slice(0, 5)} /></div>
-      {runs.length > 5 ? (
+      {recent.length ? (
+        <>
+          <Section title={shown.size ? "그 밖의 최근 진단" : "최근 진단"}
+            desc={shown.size ? "위 표에 이미 나온 진단은 여기서 뺐습니다." : undefined} />
+          <div style={{ marginTop: 8 }}><RunTable label="최근 진단" runs={recent} /></div>
+        </>
+      ) : null}
+      {runs.length > shown.size ? (
         <Link className="btn" style={{ marginTop: 12, minWidth: 220 }} to="/history">전체 {runs.length}건 보기 →</Link>
       ) : null}
     </>

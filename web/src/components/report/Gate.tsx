@@ -22,10 +22,12 @@ export const GATE_DECOY = {
   ],
 } as const;
 
-export function Gate({ title, total, hidden, unlock, decoy = "patch", onSignup }: {
+export function Gate({ title, total, hidden, unlock, decoy = "patch", compact = false, onSignup }: {
   title: string; total: string; hidden: string; unlock?: string;
-  decoy?: keyof typeof GATE_DECOY; onSignup: () => void;
+  decoy?: keyof typeof GATE_DECOY; compact?: boolean; onSignup: () => void;
 }) {
+  // ★ compact: 같은 화면에 게이트가 두 번 나올 때 두 번째는 안내 문단을 줄인다.
+  //   같은 문단을 두 번 읽히면 '막으려고 애쓰는' 인상만 남는다. 가리는 범위는 그대로다.
   // 전부 가려진 경우 "57건 / 전체 57건 비공개" 는 군더더기다.
   const tail = hidden === total ? "전부 비공개" : `/ 전체 ${total} 비공개`;
   return (
@@ -42,10 +44,13 @@ export function Gate({ title, total, hidden, unlock, decoy = "patch", onSignup }
         {unlock ? <p>{unlock}</p> : null}
         <div className="gate-cta">
           <button type="button" className="btn btn-primary" onClick={onSignup}>무료 가입하고 상세 분석과 보강안 보기</button>
-          <span>30초 · 카드 정보 없음 · 이름 · 연락처 · 생년월일을 수집하지 않습니다. 가입하면 <b>방금 실행한 이 진단</b>이
-            그대로 열립니다 — 다시 진단하지 않아도 됩니다.</span>
+          {compact ? <span>30초 · 카드 정보 없음 · 위와 같은 계정으로 함께 열립니다.</span>
+            : <span>30초 · 카드 정보 없음 · 이름 · 연락처 · 생년월일을 수집하지 않습니다. 가입하면 <b>방금 실행한 이 진단</b>이
+              그대로 열립니다 — 다시 진단하지 않아도 됩니다.</span>}
         </div>
       </div>
+      {/* ★ 이 안내는 compact 에서도 지우지 않는다 — 가리는 방식(서버 미전송)을 밝히는 문장이라
+          화면에 한 번도 안 나오는 경우가 생기면 안 된다. */}
       <div className="gate-note">위 흐린 줄은 <b>화면이 만든 예시 문장</b>입니다. 실제 내용은 비회원 응답에{" "}
         <b>애초에 담기지 않습니다</b> — 개발자도구 Network 탭에서 직접 확인할 수 있습니다.</div>
     </div>

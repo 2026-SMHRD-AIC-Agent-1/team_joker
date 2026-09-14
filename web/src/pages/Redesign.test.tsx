@@ -11,7 +11,9 @@ it("첫 화면은 로그인 폼 대신 서비스 소개와 무료 진단 링크�
   render(<MemoryRouter><Landing /></MemoryRouter>);
   expect(screen.getByRole("heading", { level: 1 }).textContent).toContain("지켜야 할 정보");
   expect(screen.queryByLabelText("비밀번호")).toBeNull();
-  expect(screen.getByRole("link", { name: "무료로 진단 시작하기 ↗" }).getAttribute("href")).toBe("/diagnose");
+  expect(screen.getByRole("link", { name: "무료로 진단 시작하기 →" }).getAttribute("href")).toBe("/diagnose");
+  // ★ 내부 이동에 ↗(외부 링크 관용 기호)를 쓰지 않는다
+  expect(document.body.textContent).not.toContain("↗");
   expect(screen.getByText("예시 화면")).toBeTruthy();
 });
 

@@ -30,6 +30,8 @@ export const TOOL_EVIDENCE: { title: string; keys: string[]; needAll: boolean }[
   { title: "지시문 보강", keys: ["asr", "benign_pass"], needAll: true },
   { title: "보강 + 탐지기, 두 층 함께", keys: ["defense_matrix"], needAll: false },
   { title: "JOKER-KO 탐지기", keys: ["ood_recall", "fpr"], needAll: false },
+  // ★ 0914: 비교 기준이 없는 수치는 성과를 말하지 못한다(현직자 피드백) — 공개 탐지기와 같은 조건에서의 위치.
+  { title: "공개 탐지기와 같은 조건에서", keys: ["public_detector"], needAll: false },
 ];
 
 export function evidenceCards(m: Metrics = METRICS) {

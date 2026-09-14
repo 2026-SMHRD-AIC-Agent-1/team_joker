@@ -787,3 +787,165 @@ a,button {
   outline:2px solid #b4ccff;
   outline-offset:2px
 }
+
+/* ───────────────────────────────────────────────────────────────
+   0914 2차 — 읽기 구조 보정. 팔레트는 그대로 두고 계층·중복·모바일만 손본다.
+   ─────────────────────────────────────────────────────────────── */
+
+/* 등급을 요약 화면으로. 히어로 첫 줄에 eyebrow 와 나란히 둔다. */
+.report-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 6px
+}
+.grade-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 16px;
+  border: 1px solid #40527033;
+  border-radius: 999px;
+  background: #0f1826;
+  font-size: 30px;
+  font-weight: 750;
+  line-height: 1.1;
+  color: #dce7ff
+}
+.grade-chip small {
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 1px;
+  color: #9eafca
+}
+
+/* 탭바 고정 — 긴 구역 바닥에서 다른 탭을 눌러도 탭이 화면에 남아 있어야 한다. */
+/* ★ backdrop-filter 를 쓰지 않는다 — tests/test_web_guard.py 가 blur( 를 .gate-blur 에만 허용한다.
+   "진짜 값을 흐려서 가리지 않는다" 를 지키는 검사라, 장식 때문에 완화하지 않는다.
+   탭바 배경은 이미 불투명이라 효과도 필요 없었다. */
+.report-navigation {
+  position: sticky;
+  /* ★ .topbar 가 sticky top:0 (min-height 88px, z-index 40) 이다.
+     top:0 으로 두면 탭바가 헤더 밑으로 파고들어 둘 다 반쯤 보인다(0914 캡처에서 확인).
+     헤더 높이만큼 내리고 z-index 도 헤더보다 낮게 둔다. */
+  top: 88px;
+  z-index: 20;
+  box-shadow: 0 10px 24px #0b101bcc
+}
+
+/* 히어로 아래 실측 띠 — 접지 않는다. */
+.metric-strip {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  margin: 8px 0 4px;
+  padding: 0;
+  border: 1px solid #27344a;
+  border-radius: 16px;
+  background: #27344a;
+  overflow: hidden
+}
+.ms-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 22px 20px;
+  background: #101a29
+}
+.ms-cell .num {
+  font-size: 26px;
+  font-weight: 750;
+  color: #dce7ff;
+  letter-spacing: -.5px
+}
+.ms-cell span {
+  font-size: 13px;
+  line-height: 1.5;
+  color: #9eafca
+}
+.ms-note {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 12px 20px;
+  background: #0d1622;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: #8b9db8
+}
+
+/* 표가 좁은 화면에서 잘리지 않게 — 가로 스크롤을 명시한다. */
+.table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch
+}
+.table-scroll > table {
+  min-width: 640px
+}
+
+@media (max-width: 900px) {
+  .metric-strip {
+    grid-template-columns: repeat(2, 1fr)
+  }
+  .report-navigation {
+    position: static
+  }
+}
+
+@media (max-width: 760px) {
+  .report-top {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px
+  }
+  .grade-chip {
+    font-size: 24px
+  }
+  /* 모바일 메뉴가 본문을 밀어내던 문제 — 헤더 아래로 덮는 판으로 띄운다. */
+  .topnav.is-open {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 100%;
+    z-index: 40;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 2px;
+    padding: 12px;
+    border-bottom: 1px solid #27344a;
+    background: #0d1622;
+    box-shadow: 0 18px 40px #00000066
+  }
+  .topnav.is-open a,
+  .topnav.is-open button {
+    padding: 13px 12px;
+    text-align: left
+  }
+  .topbar-inner {
+    position: relative
+  }
+}
+
+@media (max-width: 560px) {
+  .metric-strip {
+    grid-template-columns: 1fr
+  }
+}
+
+/* 상태별 건수 표의 색 점 */
+.dot-s {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 8px;
+  border-radius: 50%;
+  vertical-align: middle
+}
+
+/* 검증 근거 카드가 4장이 되면서 3+1 로 갈라졌다 — 넓은 화면에서 2×2 로 맞춘다. */
+@media (min-width: 900px) {
+  .ev {
+    grid-template-columns: repeat(2, 1fr)
+  }
+}

@@ -108,7 +108,7 @@ export function FilterLayerDetail({ rep }: { rep: Report }) {
   const blockable = fr.rule_blockable ?? 0;
   const mlOnly = Math.max(residual - blockable, 0);
   const flags = Object.entries(fr.flags ?? {});
-  const detail = ["detector_f1", "ood_recall", "fpr", "defense_matrix"].map(metric);
+  const detail = ["ood_recall", "fpr", "public_detector", "defense_matrix"].map(metric);
   return (
     <>
       <SubSection title="JOKER-KO 탐지기 — 이 진단에서 나온 근거 수치" />
@@ -147,7 +147,7 @@ export function FilterLayerDetail({ rep }: { rep: Report }) {
           <p className="fine">이 진단의 수치가 아니라 <b>이 층 자체의 검증 수치</b>입니다. 지금 진단한 지시문과는 다른 데이터로 측정했습니다.</p>
         </div>
       </details>
-      <p className="fine">이 층을 직접 시험해 보는 버튼은 위 <b>권고 조치 1번</b> 옆에 있습니다.</p>
+      <p className="fine">이 층을 직접 시험해 보는 버튼은 <b>아래 권고 1번</b> 옆에 있습니다.</p>
     </>
   );
 }

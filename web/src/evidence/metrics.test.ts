@@ -3,9 +3,9 @@ import { evidenceCards, METRICS, orderedMetrics } from "./metrics";
 import type { Metrics } from "./metrics";
 
 describe("검증 근거 카드", () => {
-  it("실제 json 으로 카드 3개, 공격 성공률은 정상 업무 통과율과 같은 카드", () => {
+  it("실제 json 으로 카드 4개, 공격 성공률은 정상 업무 통과율과 같은 카드", () => {
     const cards = evidenceCards();
-    expect(cards).toHaveLength(3);
+    expect(cards).toHaveLength(4);
     const first = cards[0].rows.map((r) => r.key);
     expect(first).toEqual(["asr", "benign_pass"]);
   });

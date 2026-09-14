@@ -177,7 +177,8 @@ export function NewRun() {
 
   return (
     <>
-      <PageHeader title="챗봇 지시문 진단" desc="한국어 공격으로 시험하고, 보강 전후의 차이를 확인하세요." />
+      <PageHeader eyebrow="STEP 01 · DIAGNOSE" title="챗봇 지시문 진단"
+        desc="공격 구조 여섯 가지를 실제로 던지고, 보강 전후의 차이를 확인하세요." />
       <details className="xp">
         <summary>지시문이 없다면 예시로 시작하기</summary>
         <div className="xp-body"><ExamplePicker prompt={prompt} setPrompt={(v) => { setPrompt(v); setWarn(null); }} /></div>

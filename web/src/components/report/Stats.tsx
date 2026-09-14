@@ -1,8 +1,36 @@
 // 03 · 통계 · 측정 조건. 등급 · 변화량 · 기법별 막대 · 재현 조건.
 import type { Report, Run } from "../../api/types";
 import { deltaView, techBar } from "../../lib/delta";
-import { GRADE_COLOR } from "../../lib/meta";
-import { Section } from "../Section";
+import { FINDING_ORDER } from "../../lib/findings";
+import { FINDING_META, GRADE_COLOR } from "../../lib/meta";
+import { Section, SubSection } from "../Section";
+
+/**
+ * 상태별 건수 표 — "방어된 것만 적지 말고 놓친 쪽도 같이 내라"(0914 현직자 피드백).
+ * ★ 여섯 상태를 전부 그린다. 0 건인 상태를 빼면 남은 것만 보여 유리하게 읽힌다.
+ * ★ 합계는 서버가 준 total 을 그대로 쓴다 — 화면에서 더해 만들면 서버와 어긋나도 모른다.
+ */
+export function FindingsBreakdown({ rep }: { rep: Report }) {
+  const fs = rep.findings_summary;
+  if (!fs) return null;
+  const count = (k: string) => Number((fs as unknown as Record<string, number>)[k] ?? 0);
+  return (
+    <>
+      <SubSection title="발견 항목 상태별 건수" />
+      <div className="meta">
+        {FINDING_ORDER.map((k) => (
+          <div className="row" key={k}>
+            <span className="k"><i className="dot-s" style={{ background: FINDING_META[k].color }} /> {FINDING_META[k].name}</span>
+            <span className="v num">{count(k)}건</span>
+          </div>
+        ))}
+        <div className="row"><span className="k">합계</span><span className="v num">{fs.total}건</span></div>
+      </div>
+      <p className="fine">{FINDING_META.unresolved.name}·{FINDING_META.regressed.name} 이 지금 조치가 필요한 항목이고,{" "}
+        {FINDING_META.unjudged.name}·{FINDING_META.no_retry.name} 은 <b>안전으로 세지 않은</b> 항목입니다 — 재검증이 필요합니다.</p>
+    </>
+  );
+}
 
 export function TechniqueBars({ rows }: { rows: Report["by_technique"] }) {
   return (
@@ -65,7 +93,8 @@ export function Stats({ run, rep }: { run: Run; rep: Report }) {
       {rep.comparable === false ? (
         <div className="alert alert-warn">서로 다른 공격 집합으로 실행되어 전후 비교를 보류합니다.</div>
       ) : null}
-      {rep.by_technique?.length ? <TechniqueBars rows={rep.by_technique} /> : null}
+      {/* ★ 기법별 막대는 '결과 요약' 탭으로 옮겼다(0914) — 요약이 비고 상세가 넘치던 무게 불균형 때문. */}
+      <FindingsBreakdown rep={rep} />
       <Conditions run={run} />
     </>
   );

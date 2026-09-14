@@ -129,7 +129,32 @@ def test_no_cancel_button_and_no_percent_progress():
     assert "<progress" not in prog and "%`" not in prog
 
 
+def test_honesty_sentences_are_not_duplicated_in_one_file():
+    """같은 정직성 문장이 한 파일에 두 번 있으면 화면에 두 번 찍힌다.
+
+    0914 에 실제로 그랬다 — 줄바꿈된 문장을 한 줄로 합치면서 뒷부분이 남아
+    "…거절하지 않는지도 확인해야 합니다. 않는지도 확인해야 합니다." 로 렌더됐다.
+    """
+    # HONESTY 에는 문장 조각도 있다(예: "규칙 층만"). 조각은 서로 다른 문장에 정당하게 여러 번 나오므로
+    # 문장 길이가 충분한 항목만 센다.
+    sentences = [x for x in HONESTY if len(x) >= 20]
+    for p, s in _code().items():
+        if ".test." in p.name:
+            continue
+        code = _strip_comments(s)
+        for line in sentences:
+            assert code.count(line) <= 1, f"{p.name}: 정직성 문장이 {code.count(line)}번 들어 있다 — {line}"
+
+
 def test_honesty_sentences_present_in_ported_screens():
-    joined = "\n".join(_code().values())
+    """★ 0914: 테스트 파일은 제외한다.
+
+    예전에는 `_code()` 전체(테스트 포함)를 이어 붙여 찾았다. 그래서
+      · 화면에서 렌더되지 않는 죽은 컴포넌트에 남은 문장,
+      · 테스트 코드에 적힌 기대 문자열
+    만으로도 검사가 통과했다 — 실제로 두 건이 그렇게 통과하고 있었다.
+    지금은 화면 코드에만 있어야 한다.
+    """
+    joined = "\n".join(s for p, s in _code().items() if ".test." not in p.name)
     for line in HONESTY:
-        assert line in joined, f"옮긴 화면에서 정직성 문장이 빠졌다: {line}"
+        assert line in joined, f"화면 코드에서 정직성 문장이 빠졌다(테스트 파일은 세지 않는다): {line}"

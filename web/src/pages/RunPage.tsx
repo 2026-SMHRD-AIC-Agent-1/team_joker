@@ -5,7 +5,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { api, ApiError, NetworkError } from "../api/client";
-import type { Run } from "../api/types";
+import type { Report, Run } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
 import { getStart } from "../auth/session";
 import { AuthDialog } from "../components/AuthDialog";
@@ -18,11 +18,11 @@ import { EvidenceCards } from "../components/report/Evidence";
 import { FindingDetail } from "../components/report/FindingDetail";
 import { Findings } from "../components/report/Findings";
 import { Hero } from "../components/report/Hero";
-import { DetectorCta, FilterAction } from "../components/report/Layers";
+import { DetectorCta, FilterAction, LayerRelation } from "../components/report/Layers";
 import { Inconclusive, RunError } from "../components/report/Outcomes";
 import { Prescription } from "../components/report/Prescription";
 import { ProgressView } from "../components/report/Progress";
-import { Stats } from "../components/report/Stats";
+import { Stats, TechniqueBars } from "../components/report/Stats";
 import { SCOPE_NOTICE } from "../lib/advice";
 
 const POLL_MS = 3000;
@@ -43,28 +43,63 @@ function ScopeNote({ run }: { run: Run }) {
   );
 }
 
+/**
+ * ★ 0914 복구: 4탭으로 나누면서 사라졌던 경고다.
+ * '보강 후 신규' 가 한 건이라도 있으면 보강안을 그대로 복사해 가는 것이 위험하다 —
+ * 그 사실을 '자세한 기록' 탭 문장 하나에만 두면 요약만 보고 적용하는 경로에서 아무 말도 안 하게 된다.
+ * 그래서 요약 탭과 보강안 탭 두 곳에 모두 띄운다(안전 문구는 중복을 감수한다).
+ */
+function RegressedAlert({ rep, onOpen }: { rep: Report; onOpen?: () => void }) {
+  const n = rep.findings_summary?.regressed ?? 0;
+  if (!n) return null;
+  return (
+    <div className="alert alert-warn" data-testid="regressed-alert">
+      <b>보강 후 새로 유출된 요청이 {n}건 있습니다.</b> 보강 전에는 막혔는데 보강 후 뚫린 항목입니다.
+      보강안을 적용하기 전에 이 항목부터 재검증하세요.
+      {onOpen ? <> <button type="button" className="btn btn-link" onClick={onOpen}>해당 항목 보기 →</button></> : null}
+    </div>
+  );
+}
+
 export function ReportBody({ run, onSignup, focusFindings }: { run: Run; onSignup: () => void; focusFindings: boolean }) {
   const rep = run.report!;
   const gated = run.gated ?? { is_gated: false };
   const [params, setParams] = useSearchParams();
   const requested = Number(params.get("section") ?? (focusFindings ? 1 : 0));
   const section = Number.isInteger(requested) && requested >= 0 && requested <= 3 ? requested : 0;
-  const setSection = (value: number) => setParams(previous => { const next = new URLSearchParams(previous); next.set("section", String(value)); return next; }, { replace: true });
+  const setSection = (value: number) => {
+    setParams(previous => { const next = new URLSearchParams(previous); next.set("section", String(value)); return next; }, { replace: true });
+    // ★ 탭은 쿼리만 바꾸므로 Layout 의 pathname 스크롤 초기화가 걸리지 않는다 — 여기서 직접 올린다.
+    requestAnimationFrame(() => document.getElementById("report-navigation")?.scrollIntoView({ block: "start" }));
+  };
   useEffect(() => { if (focusFindings) setSection(1); }, [focusFindings]);
   const labels = ["결과 요약", "발견된 문제", "지시문 보강안", "자세한 기록"];
   return <>
-    <div className="report-navigation" role="tablist" aria-label="진단 결과 구역">
+    <div className="report-navigation" id="report-navigation" role="tablist" aria-label="진단 결과 구역">
       {labels.map((label, i) => <button id={`report-tab-${i}`} key={label} role="tab" aria-selected={section === i} aria-controls="report-panel" tabIndex={section === i ? 0 : -1}
         onKeyDown={e => { let next = i; if (e.key === "ArrowRight") next = (i + 1) % 4; else if (e.key === "ArrowLeft") next = (i + 3) % 4; else if (e.key === "Home") next = 0; else if (e.key === "End") next = 3; else return; e.preventDefault(); setSection(next); document.getElementById(`report-tab-${next}`)?.focus(); }}
         onClick={() => setSection(i)}><span>0{i + 1}</span>{label}</button>)}
     </div>
     <section id="report-panel" role="tabpanel" aria-labelledby={`report-tab-${section}`} className="report-panel" tabIndex={0}>
       <div className="page-transition" key={section}>
-      {section === 0 ? <><Hero rep={rep} assetsN={run.recon?.assets ? run.recon.assets.length : null} /><ScopeNote run={run} />
+      {section === 0 ? <><Hero rep={rep} assetsN={run.recon?.assets ? run.recon.assets.length : null} />
+        <RegressedAlert rep={rep} onOpen={() => setSection(1)} />
+        {rep.by_technique?.length ? <>
+          <Section title="공격 기법별 보강 전 → 후" desc="어떤 구조의 공격이 남았는지가 다음에 무엇을 막아야 하는지를 말해 줍니다." />
+          <TechniqueBars rows={rep.by_technique} />
+        </> : null}
+        <ScopeNote run={run} />
         <div className="summary-next"><div><span className="eyebrow">NEXT STEP</span><h2>확인하고, 검토한 뒤 적용하세요.</h2><p>실제 질문과 응답을 확인하고 지시문 보강안을 검토하세요.</p></div><div className="btn-row"><button className="btn btn-primary" onClick={() => setSection(1)}>발견된 문제 확인 →</button><button className="btn" onClick={() => setSection(2)}>보강안 확인</button></div></div></> : null}
       {section === 1 ? <><EvidenceCards rep={rep} gated={gated} onSignup={onSignup} /><Findings runId={run.run_id} rep={rep} gated={gated} onSignup={onSignup} /></> : null}
-      {section === 2 ? <><Prescription rep={rep} gated={gated} onSignup={onSignup} /><FilterAction rep={rep} index={1} /><DetectorCta rep={rep} />
-        <div className="notice">실제 비밀번호와 접근키는 지시문 밖에서 보관하고 서버의 인증·권한 검사로 접근을 제어하세요.</div></> : null}
+      {/* ★ 0914 복구: 관계도(LayerRelation)를 보강안 맨 위로 되살렸다 — 아래 권고 1번이 왜 나왔는지를 그림으로 먼저 보인다.
+          4탭 전환 때 import 가 빠져 화면에서 사라져 있었다(코드는 Layers.tsx 에 그대로 남아 있었다). */}
+      {section === 2 ? <><LayerRelation residual={rep.filter_recommendation?.residual ?? 0} />
+        <RegressedAlert rep={rep} onOpen={() => setSection(1)} />
+        <Prescription rep={rep} gated={gated} onSignup={onSignup} />
+        <Section title="권고 조치" desc="문구 보강만으로 끝내지 않고, 적용한 뒤 정상 업무까지 확인하세요." />
+        <FilterAction rep={rep} index={1} /><DetectorCta rep={rep} />
+        <div className="next-action"><span className="step">2</span>
+          <div><b>비밀값을 지시문 밖으로 옮기세요</b><p>실제 비밀번호와 접근키는 서버에서 보관하고 인증·권한 검사로 접근을 제어하세요.</p></div></div></> : null}
       {section === 3 ? <><Section title="통계와 측정 조건" desc="이번 진단의 모델, 시험 범위와 판정 기록입니다." /><Stats run={run} rep={rep} /></> : null}
       </div>
     </section>

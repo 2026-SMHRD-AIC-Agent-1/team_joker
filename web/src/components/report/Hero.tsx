@@ -3,7 +3,7 @@
 // ★ 0911 D: 4단계 흐름은 별도 블록이 아니라 이 카드의 아래 띠다(따로 두면 숫자가 두 벌로 읽혔다).
 import type { Report } from "../../api/types";
 import { reportActionRequired } from "../../lib/findings";
-import { sev } from "../../lib/meta";
+import { GRADE_COLOR, sev } from "../../lib/meta";
 
 export function heroText(rep: Report): { title: string; lead: string; before: number; after: number } {
   const fs = rep.findings_summary;
@@ -24,6 +24,10 @@ export function heroText(rep: Report): { title: string; lead: string; before: nu
 
 export function Hero({ rep, assetsN }: { rep: Report; assetsN: number | null }) {
   const { title, lead, before, after } = heroText(rep);
+  // ★ 판정을 보류한 진단에서는 등급을 띄우지 않는다 — lead 가 "등급을 보류합니다" 라고 말하는데
+  //   옆에 등급이 붙어 있으면 화면이 스스로 모순된다(0914 캡처에서 실제로 그랬다).
+  const uncertain = (rep.findings_summary.unjudged ?? 0) + (rep.findings_summary.no_retry ?? 0);
+  const grade = uncertain ? null : rep.grade;
   const need = reportActionRequired(rep);
   const total = rep.findings_summary.total;
   const patterns = rep.applied_patterns ?? [];
@@ -36,7 +40,15 @@ export function Hero({ rep, assetsN }: { rep: Report; assetsN: number | null }) 
   ];
   return (
     <div className="report-hero" data-testid="hero">
-      <div className="report-eyebrow">DIAGNOSIS REPORT</div>
+      <div className="report-top">
+        <span className="report-eyebrow">DIAGNOSIS REPORT</span>
+        {/* ★ 등급은 요약 화면에 있어야 한다 — '자세한 기록' 탭에만 두면 첫 화면이 "몇 점인지" 에 답하지 않는다.
+            판정을 보류한 진단은 등급 대신 '판정 보류' 를 같은 자리에 적는다(빈칸으로 두지 않는다). */}
+        <span className="grade-chip" data-testid="grade"
+              style={grade ? { color: GRADE_COLOR[grade], borderColor: GRADE_COLOR[grade] } : undefined}>
+          {grade ? <><small>등급</small>{grade}</> : <small>등급 판정 보류</small>}
+        </span>
+      </div>
       <h2 className="report-title">{title}</h2>
       <div className="report-lead">{lead}</div>
       <div className="report-numbers">
@@ -47,7 +59,8 @@ export function Hero({ rep, assetsN }: { rep: Report; assetsN: number | null }) 
         <div><div className="report-label">조치가 필요한 항목</div>
           <div className="report-number" style={{ color: need ? sev("unresolved") : sev("resolved") }}>{need}<small>건</small></div></div>
       </div>
-      <details className="hero-process"><summary>이번 진단은 어떻게 진행됐나요?</summary>
+      {/* ★ 기본 펼침 — 시연에서 제일 먼저 보여 줄 흐름이 클릭해야 나오면 안 된다. 접을 수는 있게 둔다. */}
+      <details className="hero-process" open><summary>이번 진단은 어떻게 진행됐나요?</summary>
       <div className="flow in-hero">
         {steps.map(([name, d], i) => (
           <div className="flow-step" key={name}><span className="n">{i + 1}</span><b>{name}</b><span className="d">{d}</span></div>

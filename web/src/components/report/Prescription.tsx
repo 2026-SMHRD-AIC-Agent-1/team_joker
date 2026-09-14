@@ -59,8 +59,8 @@ export function Prescription({ rep, gated, onSignup }: { rep: Report; gated: Gat
       <Section title="보강안과 변경 내용" desc="두 가지입니다 — 지시문을 고치고, 입력단에 탐지기를 답니다." />
       {/* ★ 0911 D: '정상 질문으로 재검증' 권고를 맨 위로. 수치는 headline_metrics.json 에서만. */}
       <div className="notice" style={{ marginBottom: 12 }} data-testid="recheck">
-        <b>적용 전에 별도 공격과 정상 질문으로 재검증하세요.</b> 같은 공격의 개선만으로 일반화하지 마세요. 정상 업무까지 거절하지
-        않는지도 확인해야 합니다.
+        {/* ★ 아래 문장은 tests/test_web_guard.py 의 정직성 목록에 있다 — 한 줄로 둔다(줄바꿈하면 검사가 못 찾는다). */}
+        <b>적용 전에 별도 공격과 정상 질문으로 재검증하세요.</b> 같은 공격의 개선만으로 일반화하지 마세요. 정상 업무까지 거절하지 않는지도 확인해야 합니다.
         {bp ? <><br />이 도구의 검증(별도 데이터)에서도 보강문을 붙이자 정상 업무 통과율이 <b>{bp.value}</b>로 바뀌었습니다 — {bp.detail}.</> : null}
       </div>
       {rep.applied_patterns?.length ? (

@@ -13,7 +13,9 @@ export function trendPoints(runs: RunRow[]): RunRow[] {
 export function TrendChart({ runs }: { runs: RunRow[] }) {
   const pts = trendPoints(runs);
   if (pts.length < 3) return null;
-  const w = 1200, h = 190, pl = 52, pr = 66, pt = 16, pb = 30;
+  // ★ pr(오른쪽 여백)은 계열 라벨("59% 보강 전" ≈ 80px)이 들어갈 만큼 둬야 한다.
+  //   66 이면 라벨이 viewBox 밖으로 나가 잘렸다(0914).
+  const w = 1200, h = 190, pl = 52, pr = 104, pt = 16, pb = 30;
   const ix = w - pl - pr, iy = h - pt - pb, step = ix / (pts.length - 1);
   const x = (i: number) => pl + i * step;
   const y = (v: number) => pt + (1 - v) * iy;

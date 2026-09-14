@@ -42,8 +42,9 @@ export function EvidenceCards({ rep, gated, onSignup }: { rep: Report; gated: Ga
   const cards = rep.representative_findings ?? [];
   return (
     <section aria-label="발견한 문제">
-      <Section title="01 · 발견한 문제"
-        desc="대표 항목 최대 3개입니다. 요청과 응답을 먼저 보고, 판정 근거는 카드 안에서 펼치세요. 모든 시험은 아래 ‘전체 공격 기록 확인’ 에 있습니다." />
+      {/* ★ 구역 번호를 여기에 쓰지 않는다 — 위쪽 탭이 이미 번호를 매기고 있어 두 벌이 된다. */}
+      <Section title="대표 문제"
+        desc="가장 먼저 볼 항목 최대 3개입니다. 요청과 응답을 먼저 보고, 판정 근거는 카드 안에서 펼치세요. 모든 시험 기록은 이 아래 ‘전체 발견 항목’ 에 있습니다." />
       {!cards.length ? (
         <p className="fine">대표 유출·판정 불가 항목이 없습니다. 아래 전체 시험 기록을 확인할 수 있습니다.</p>
       ) : cards.map((card, index) => {
