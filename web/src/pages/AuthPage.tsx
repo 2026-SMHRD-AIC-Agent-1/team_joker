@@ -4,8 +4,6 @@ import { useState } from "react";
 import type { FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
-import { Footer } from "../components/Footer";
-import { MockBanner } from "../components/MockBanner";
 
 // ★ 수집 고지 — 보안 진단 서비스가 자기 수집이 과하면 자기모순이다(개인정보보호법 §16 최소수집).
 export const SIGNUP_PRIVACY = "이름 · 휴대폰번호 · 생년월일은 수집하지 않습니다.";
@@ -80,7 +78,7 @@ export function AuthPage() {
   const exhausted = guest.remaining === 0;
   return (
     <div className="main-narrow">
-      <MockBanner />
+
       <div className="auth-grid">
         <div>
           <div className="auth-brand"><span className="dot" /><span className="m">Chat Shield</span></div>
@@ -95,7 +93,7 @@ export function AuthPage() {
         </div>
         <div className="authbox">
           <div className="auth-panel-t">진단 기록과 보강안을 이어서 보려면 로그인하세요.</div>
-          <AuthForm onDone={(claimed) => nav(claimed && lastRunId ? `/runs/${encodeURIComponent(lastRunId)}` : "/")} />
+          <AuthForm onDone={(claimed) => nav(claimed && lastRunId ? `/runs/${encodeURIComponent(lastRunId)}` : "/dashboard")} />
           <div className="auth-div">또는</div>
           {lastRunId ? <Link className="btn btn-block" to={`/runs/${encodeURIComponent(lastRunId)}`}>{guest.runningRunId ? "진행 중인 진단으로 돌아가기" : "이전 진단 결과 보기"}</Link> : null}
           <button className="btn btn-block" disabled={exhausted}
@@ -114,7 +112,7 @@ export function AuthPage() {
           ) : guest.limitNote && !exhausted ? <p className="fine">🎟️ {guest.limitNote}</p> : null}
         </div>
       </div>
-      <Footer />
+
     </div>
   );
 }

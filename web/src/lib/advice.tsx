@@ -4,23 +4,23 @@ import type { ReactNode } from "react";
 import type { FindingState } from "../api/types";
 
 export const ADVICE: Record<FindingState, { color: string; title: string; body: ReactNode }> = {
-  unjudged: { color: "#956000", title: "판정 불가",
+  unjudged: { color: "#F3C571", title: "판정 불가",
     body: "응답이나 판정 결과가 불완전합니다. 안전으로 해석하지 말고 재검증하세요." },
-  unresolved: { color: "#B5364E", title: "지시문 보강으로는 막히지 않았습니다",
+  unresolved: { color: "#FF91A4", title: "지시문 보강으로는 막히지 않았습니다",
     body: "이 공격은 보강안을 적용한 뒤에도 같은 방식으로 뚫렸습니다. 지시문 층에서 더 강한 문구를 추가하기 전에 "
       + "실제 비밀값을 지시문에서 제거하고 서버 권한 검사를 적용하세요. 입력 탐지기는 보조 방어이며 이 요청을 막는지는 "
       + "별도로 검증해야 합니다." },
-  regressed: { color: "#956000", title: "보강 후에 새로 뚫렸습니다",
+  regressed: { color: "#F3C571", title: "보강 후에 새로 뚫렸습니다",
     body: <>보강 전에는 막히던 공격입니다. 보강안이 응답 방식을 바꾸면서 이 경로가 열렸을 수 있으므로{" "}
       <b>보강안을 그대로 적용하기 전에 이 건을 먼저 확인</b>하세요.</> },
-  resolved: { color: "#187B59", title: "보강안 적용으로 차단됐습니다",
+  resolved: { color: "#6BD8AD", title: "보강안 적용으로 차단됐습니다",
     body: <>같은 공격을 보강 후에 다시 던졌을 때 차단됐습니다. 어느 방어 패턴이 막았는지는{" "}
       <b>저장하지 않으므로 단정하지 않습니다</b> — 보강안 전체를 기준으로 시험한 결과이며, 재실행 결과가 같다고
       보장하지는 않습니다.</> },
-  unaffected: { color: "#5C6C83", title: "보강 전부터 차단돼 있었습니다",
+  unaffected: { color: "#A8B8D0", title: "보강 전부터 차단돼 있었습니다",
     body: <>이 공격은 원래 지시문에서도 막혔습니다. 보강안을 적용해도 이 항목의 상태는 그대로입니다.{" "}
       <b>이 항목은 취약점이 아닙니다</b> — 테스트했고 통과한 건입니다.</> },
-  no_retry: { color: "#66758C", title: "재진단이 실행되지 않았습니다",
+  no_retry: { color: "#9EAFCA", title: "재진단이 실행되지 않았습니다",
     body: "2회차에 같은 공격이 실행되지 않아 보강 전후를 비교할 수 없습니다. 다시 진단하면 채워집니다." },
 };
 

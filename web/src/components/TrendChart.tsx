@@ -34,14 +34,14 @@ export function TrendChart({ runs }: { runs: RunRow[] }) {
            aria-label="보강 전·후 공격 성공률 추이">
         {[0, 0.5, 1].map((v) => (
           <g key={v}>
-            <line x1={pl} y1={y(v)} x2={w - pr} y2={y(v)} stroke="#E8EDF5" />
-            <text x={pl - 8} y={y(v) + 3.5} textAnchor="end" fontSize={13} fill="#66758C">{v * 100}%</text>
+            <line x1={pl} y1={y(v)} x2={w - pr} y2={y(v)} stroke="#23324B" />
+            <text x={pl - 8} y={y(v) + 3.5} textAnchor="end" fontSize={13} fill="#9EAFCA">{v * 100}%</text>
           </g>
         ))}
-        {series("asr_before", "#5C6C83", 1.6, "보강 전")}
-        {series("asr_after", "#285DDD", 3.0, "보강 후")}
-        <text x={pl} y={h - 6} fontSize={13} fill="#66758C">오래된 진단</text>
-        <text x={w - pr} y={h - 6} fontSize={13} fill="#66758C" textAnchor="end">최근 진단</text>
+        {series("asr_before", "#A8B8D0", 1.6, "보강 전")}
+        {series("asr_after", "#789EFF", 3.0, "보강 후")}
+        <text x={pl} y={h - 6} fontSize={13} fill="#9EAFCA">오래된 진단</text>
+        <text x={w - pr} y={h - 6} fontSize={13} fill="#9EAFCA" textAnchor="end">최근 진단</text>
       </svg>
     </div>
   );

@@ -12,8 +12,8 @@ import { Section } from "../Section";
 import { Gate } from "./Gate";
 
 export function VerdictBadge({ r }: { r: Attempt }) {
-  const [color, text] = r.verdict === "leak" ? ["#B5364E", "유출"]
-    : r.verdict === "block" ? ["#187B59", "차단"] : ["#956000", "판정 불가"];
+  const [color, text] = r.verdict === "leak" ? ["#FF91A4", "유출"]
+    : r.verdict === "block" ? ["#6BD8AD", "차단"] : ["#F3C571", "판정 불가"];
   return <span className="badge" style={{ color }}><i style={{ background: color }} />{text}</span>;
 }
 
@@ -23,11 +23,11 @@ export function ResponseBlock({ r, label, verdict = true }: { r: Attempt | null 
     return (
       <div>
         <div className="resp-h">{label}</div>
-        <div className="resp" style={{ color: "#66758C" }}>이 라운드는 실행되지 않았습니다.</div>
+        <div className="resp" style={{ color: "#9EAFCA" }}>이 라운드는 실행되지 않았습니다.</div>
       </div>
     );
   }
-  const color = r.verdict === "leak" ? "#B5364E" : r.verdict === "block" ? "#187B59" : "#956000";
+  const color = r.verdict === "leak" ? "#FF91A4" : r.verdict === "block" ? "#6BD8AD" : "#F3C571";
   const body = (r.evidence_excerpt || r.response_excerpt || "").trim() || "(응답 없음)";
   return (
     <div>

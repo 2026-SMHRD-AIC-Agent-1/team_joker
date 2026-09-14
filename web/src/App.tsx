@@ -8,6 +8,7 @@ import { History } from "./pages/History";
 import { Detect } from "./pages/Detect";
 import { NewRun } from "./pages/NewRun";
 import { RunPage } from "./pages/RunPage";
+import { Landing } from "./pages/Landing";
 import { Settings } from "./pages/Settings";
 
 /** 회원만 내용이 생기는 화면. 비회원이 들어오면 첫 화면으로 돌린다(껍데기 화면을 보여 주지 않는다). */
@@ -20,9 +21,10 @@ export default function App() {
   const { loggedIn, token } = useAuth();
   return (
     <Routes>
-      {!loggedIn ? <Route path="/" element={<AuthPage />} /> : null}
       <Route element={<Layout />}>
-        {loggedIn ? <Route path="/" element={<Dashboard />} /> : null}
+        <Route path="/" element={<Landing />} />
+        <Route path="/login" element={loggedIn ? <Navigate to="/dashboard" replace /> : <AuthPage />} />
+        <Route path="/dashboard" element={<RequireLogin><Dashboard /></RequireLogin>} />
         <Route path="/history" element={<RequireLogin><History /></RequireLogin>} />
         <Route path="/diagnose" element={<NewRun />} />
         <Route path="/runs/:runId" element={<RunPage key={token ?? "guest"} />} />

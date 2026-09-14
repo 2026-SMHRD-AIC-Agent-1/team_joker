@@ -21,7 +21,7 @@ export function Failure({ icon, title, why, actions, code, runId, tone = "error"
   icon: string; title: string; why: ReactNode; actions: ReactNode[];
   code?: string; runId?: string | null; tone?: "error" | "warn";
 }) {
-  const color = tone === "warn" ? "#956000" : "#B5364E";
+  const color = tone === "warn" ? "#F3C571" : "#FF91A4";
   const meta = [code ? `code ${code}` : "", runId ? `run ${runId}` : ""].filter(Boolean).join(" · ");
   return (
     <div className="card" role="alert" style={{ borderColor: `${color}33`, background: `${color}0A` }}>

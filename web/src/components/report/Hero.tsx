@@ -47,12 +47,14 @@ export function Hero({ rep, assetsN }: { rep: Report; assetsN: number | null }) 
         <div><div className="report-label">조치가 필요한 항목</div>
           <div className="report-number" style={{ color: need ? sev("unresolved") : sev("resolved") }}>{need}<small>건</small></div></div>
       </div>
+      <details className="hero-process"><summary>이번 진단은 어떻게 진행됐나요?</summary>
       <div className="flow in-hero">
         {steps.map(([name, d], i) => (
           <div className="flow-step" key={name}><span className="n">{i + 1}</span><b>{name}</b><span className="d">{d}</span></div>
         ))}
       </div>
       <div className="flow-note"><b>3·4단계가 이 도구의 핵심</b>입니다 — 고칠 문구를 만든 뒤 <b>같은 공격을 그대로 다시 던집니다</b>.</div>
+      </details>
     </div>
   );
 }

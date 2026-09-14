@@ -2,8 +2,8 @@
 //
 // ★ 서버가 소유자·게이팅을 판단한다. 이 화면은 받은 것만 그린다 — 비회원 응답에는 증거 상세가 애초에 없다.
 // ★ 남의 진단·없는 진단은 서버가 둘 다 404 로 답한다(IDOR). 화면도 둘을 구분하지 않는다.
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
+import { useCallback, useEffect, useState } from "react";
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { api, ApiError, NetworkError } from "../api/client";
 import type { Run } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
@@ -18,7 +18,7 @@ import { EvidenceCards } from "../components/report/Evidence";
 import { FindingDetail } from "../components/report/FindingDetail";
 import { Findings } from "../components/report/Findings";
 import { Hero } from "../components/report/Hero";
-import { DetectorCta, FilterAction, LayerRelation } from "../components/report/Layers";
+import { DetectorCta, FilterAction } from "../components/report/Layers";
 import { Inconclusive, RunError } from "../components/report/Outcomes";
 import { Prescription } from "../components/report/Prescription";
 import { ProgressView } from "../components/report/Progress";
@@ -43,55 +43,32 @@ function ScopeNote({ run }: { run: Run }) {
   );
 }
 
-function ReportBody({ run, onSignup, focusFindings }: { run: Run; onSignup: () => void; focusFindings: boolean }) {
+export function ReportBody({ run, onSignup, focusFindings }: { run: Run; onSignup: () => void; focusFindings: boolean }) {
   const rep = run.report!;
   const gated = run.gated ?? { is_gated: false };
-  const residual = rep.filter_recommendation?.residual ?? 0;
-  const step = rep.filter_recommendation?.note ? 2 : 1;
-  const detailsRef = useRef<HTMLDetailsElement>(null);
-  const [tab, setTab] = useState<"log" | "stat">("log");
-  useEffect(() => {
-    if (focusFindings && detailsRef.current) {
-      detailsRef.current.open = true;
-      detailsRef.current.scrollIntoView({ block: "start" });
-    }
-  }, [focusFindings]);
-  return (
-    <>
-      <Hero rep={rep} assetsN={run.recon?.assets ? run.recon.assets.length : null} />
-      <ScopeNote run={run} />
-      <EvidenceCards rep={rep} gated={gated} onSignup={onSignup} />
-
-      <Section title="02 · 권고 조치" desc="문구 보강만으로 끝내지 않고, 적용 후 정상 업무까지 확인하세요." />
-      {/* 관계도를 권고 맨 위에 — 아래 1번 권고가 왜 나왔는지를 그림으로 먼저 보인다. */}
-      <LayerRelation residual={residual} />
-      <FilterAction rep={rep} index={1} />
-      <DetectorCta rep={rep} />
-      {/* ★ 0911 D: 권고는 이 진단이 만든 것만. 비밀값을 지시문 안에서 실제로 찾아냈으므로 근본 조치를 남긴다. */}
-      <div className="next-action"><span className="step">{step}</span>
-        <div><b>비밀값을 지시문 밖으로 옮기세요</b><p>실제 비밀번호와 접근키는 서버에서 보관하고 인증·권한 검사로 접근을 제어하세요.</p></div></div>
-      {rep.findings_summary.regressed ? (
-        <div className="alert alert-warn">보강 후 새로 유출된 요청이 있습니다. 적용 전에 이 항목의 재검증이 필요합니다.</div>
-      ) : null}
-      <details className="xp">
-        <summary>보강안과 변경 내용 확인</summary>
-        <div className="xp-body"><Prescription rep={rep} gated={gated} onSignup={onSignup} /></div>
-      </details>
-
-      <Section title="03 · 더 자세히 확인하기" />
-      {/* ★ 0911 D: 접기 두 개를 하나로(탭 2개) — 둘 다 '더 자세히' 라서. */}
-      <details className="xp" ref={detailsRef} id="findings">
-        <summary>전체 공격 기록 확인</summary>
-        <div className="xp-body">
-          <div className="tabs" role="tablist">
-            <button type="button" className="tab" role="tab" aria-selected={tab === "log"} onClick={() => setTab("log")}>공격 기록</button>
-            <button type="button" className="tab" role="tab" aria-selected={tab === "stat"} onClick={() => setTab("stat")}>통계 · 측정 조건</button>
-          </div>
-          {tab === "log" ? <Findings runId={run.run_id} rep={rep} gated={gated} onSignup={onSignup} /> : <Stats run={run} rep={rep} />}
-        </div>
-      </details>
-    </>
-  );
+  const [params, setParams] = useSearchParams();
+  const requested = Number(params.get("section") ?? (focusFindings ? 1 : 0));
+  const section = Number.isInteger(requested) && requested >= 0 && requested <= 3 ? requested : 0;
+  const setSection = (value: number) => setParams(previous => { const next = new URLSearchParams(previous); next.set("section", String(value)); return next; }, { replace: true });
+  useEffect(() => { if (focusFindings) setSection(1); }, [focusFindings]);
+  const labels = ["결과 요약", "발견된 문제", "지시문 보강안", "자세한 기록"];
+  return <>
+    <div className="report-navigation" role="tablist" aria-label="진단 결과 구역">
+      {labels.map((label, i) => <button id={`report-tab-${i}`} key={label} role="tab" aria-selected={section === i} aria-controls="report-panel" tabIndex={section === i ? 0 : -1}
+        onKeyDown={e => { let next = i; if (e.key === "ArrowRight") next = (i + 1) % 4; else if (e.key === "ArrowLeft") next = (i + 3) % 4; else if (e.key === "Home") next = 0; else if (e.key === "End") next = 3; else return; e.preventDefault(); setSection(next); document.getElementById(`report-tab-${next}`)?.focus(); }}
+        onClick={() => setSection(i)}><span>0{i + 1}</span>{label}</button>)}
+    </div>
+    <section id="report-panel" role="tabpanel" aria-labelledby={`report-tab-${section}`} className="report-panel" tabIndex={0}>
+      <div className="page-transition" key={section}>
+      {section === 0 ? <><Hero rep={rep} assetsN={run.recon?.assets ? run.recon.assets.length : null} /><ScopeNote run={run} />
+        <div className="summary-next"><div><span className="eyebrow">NEXT STEP</span><h2>확인하고, 검토한 뒤 적용하세요.</h2><p>실제 질문과 응답을 확인하고 지시문 보강안을 검토하세요.</p></div><div className="btn-row"><button className="btn btn-primary" onClick={() => setSection(1)}>발견된 문제 확인 →</button><button className="btn" onClick={() => setSection(2)}>보강안 확인</button></div></div></> : null}
+      {section === 1 ? <><EvidenceCards rep={rep} gated={gated} onSignup={onSignup} /><Findings runId={run.run_id} rep={rep} gated={gated} onSignup={onSignup} /></> : null}
+      {section === 2 ? <><Prescription rep={rep} gated={gated} onSignup={onSignup} /><FilterAction rep={rep} index={1} /><DetectorCta rep={rep} />
+        <div className="notice">실제 비밀번호와 접근키는 지시문 밖에서 보관하고 서버의 인증·권한 검사로 접근을 제어하세요.</div></> : null}
+      {section === 3 ? <><Section title="통계와 측정 조건" desc="이번 진단의 모델, 시험 범위와 판정 기록입니다." /><Stats run={run} rep={rep} /></> : null}
+      </div>
+    </section>
+  </>;
 }
 
 function DeleteButton({ runId }: { runId: string }) {

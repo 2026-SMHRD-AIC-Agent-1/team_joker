@@ -7,9 +7,9 @@ import { useHealth } from "../hooks/useHealth";
 function StatusChip() {
   const h = useHealth();
   const [color, text] = h === undefined ? ["#C3CDDC", "엔진 확인 중"]
-    : h === null ? ["#B5364E", "엔진 끊김"]
+    : h === null ? ["#FF91A4", "엔진 끊김"]
     : h.profile === "mock" ? ["#E08A00", "mock (가짜 응답)"]
-    : ["#187B59", "엔진 정상"];
+    : ["#6BD8AD", "엔진 정상"];
   return <div className="status-chip" role="status"><i style={{ background: color }} />{text}</div>;
 }
 

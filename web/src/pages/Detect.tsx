@@ -23,7 +23,7 @@ export function DetectionCard({ d }: { d: DetectResult }) {
   const score = d.score ?? 0;
   const thr = d.threshold ?? 0.5;
   const flags = flagList(d.rule_flags);
-  const color = inj ? "#B5364E" : "#187B59";
+  const color = inj ? "#FF91A4" : "#6BD8AD";
   return (
     <div data-testid="detection">
       <div className="card" style={{ borderColor: `${color}33`, background: `${color}0A` }}>
@@ -95,7 +95,7 @@ export function Detect() {
 
   return (
     <>
-      <PageHeader title="JOKER-KO 탐지기"
+      <PageHeader title="입력문 검사"
         desc={<>문구를 하나 넣어 <b>이것이 한국어 프롬프트 인젝션인지</b> 판정합니다. 실제 서비스에 붙이면 이 판정이 사용자 요청마다 챗봇
           앞단에서 돕니다. 이 화면은 운영 트래픽을 감시하지 않습니다 — 넣은 문구 하나만 검사합니다.</>} />
       {h && !h.detector_ready ? noModel : null}

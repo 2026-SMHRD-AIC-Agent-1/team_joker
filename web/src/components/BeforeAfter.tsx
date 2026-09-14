@@ -10,10 +10,10 @@ export function BeforeAfter({ before, after, comparable }: {
   if (d === "incomparable") {
     return <span className="cell-sub num">{fmtPct(before)} → {fmtPct(after)} · 비교 불가</span>;
   }
-  const [color, mark] = d === "better" ? [sev("resolved"), "▼"] : d === "worse" ? [sev("unresolved"), "▲"] : ["#5C6C83", "="];
+  const [color, mark] = d === "better" ? [sev("resolved"), "▼"] : d === "worse" ? [sev("unresolved"), "▲"] : ["#A8B8D0", "="];
   return (
     <span>
-      <span className="num" style={{ color: "#5C6C83" }}>{fmtPct(before)}</span>
+      <span className="num" style={{ color: "#A8B8D0" }}>{fmtPct(before)}</span>
       <span className="cell-sub"> → </span>
       <span className="num" style={{ color, fontWeight: 700 }}>{mark} {fmtPct(after)}</span>
     </span>

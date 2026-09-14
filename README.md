@@ -5,7 +5,9 @@
 > 제품명 **Chat Shield** · 한국어 탐지 모델 **JOKER-KO** · 팀/엔진 코드명 **JOKER**(패키지 `joker`)
 > 화면·문서·발표는 모두 "Chat Shield" 로 표기합니다.
 
-현재 기본 화면은 **React + TypeScript + Vite**입니다. Node.js로 웹을 실행하고,
+현재 기본 화면은 **React + TypeScript + Vite**입니다.
+첫 화면은 서비스 소개 페이지이며 로그인은 `/login`, 회원 대시보드는 `/dashboard`에서 열립니다.
+어두운 남색 테마와 상단 메뉴를 사용하며, 결과는 요약·문제·보강안·기록으로 나누어 확인합니다. Node.js로 웹을 실행하고,
 진단·탐지·인증·저장은 **Python FastAPI**가 담당합니다. Streamlit은 이전 화면 확인용으로 남겨 두었습니다.
 
 설치가 끝난 개발 환경에서는 프로젝트 루트에서 다음 명령으로 시작합니다.
@@ -247,71 +249,155 @@ flowchart TD
 
 ## 7. 5분 안에 돌려보기
 
-### 준비물
+### ① 처음 설치할 때 (한 번만)
 
-- Python 3.11 이상
-- Node.js 20 이상 및 npm
-- [Ollama](https://ollama.com) (로컬 모델용) — 없으면 `mock` 프로파일로 화면만 볼 수 있습니다
+아래 명령은 **macOS 터미널 / Linux 셸 기준**입니다. Python 3.11 이상과 Node.js 20 이상(npm 포함)이 필요합니다.
 
 ```bash
-# 1) 설치
-python3 -m venv .venv && source .venv/bin/activate
-pip install -e ".[web]"
-
-# 2) 설정
-cp .env.example .env        # LLM_BASE_URL, JOKER_PROFILE 등을 확인
-ollama pull qwen2.5:3b-instruct
-
-# 3) 상태 점검 — 모델·키·경로가 다 맞는지 한 화면에 출력
-joker doctor
+python3 --version
+node --version
+npm --version
 ```
 
-### 웹 화면으로 쓰기 (권장 · Streamlit 불필요)
-
-Node.js 20 이상을 준비하고 프로젝트 루트에서 실행합니다.
+저장소를 처음 받는 경우:
 
 ```bash
+git clone https://github.com/2026-SMHRD-AIC-Agent-1/team_joker.git
+cd team_joker
+```
+
+이미 프로젝트가 있다면 **`README.md`, `pyproject.toml`, `web` 폴더가 함께 있는 위치**로 이동하세요.
+폴더 이름은 `team_joker` 또는 `model` 등 설치 위치에 따라 다를 수 있습니다.
+아래 Python 설치 명령은 `web` 안이 아니라 프로젝트 루트에서 실행합니다.
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -e ".[web]"
+
+# .env가 아직 없을 때만 예시 설정을 복사합니다.
+# 이미 설정한 .env는 덮어쓰지 않습니다.
+[ -f .env ] || cp .env.example .env
+
+# 웹 의존성 설치
 cd web
 npm ci
+```
+
+실제 로컬 모델로 진단하려면 [Ollama](https://ollama.com)를 설치하고 실행한 뒤 모델을 준비합니다.
+
+```bash
+ollama pull qwen2.5:3b-instruct
+```
+
+프로젝트 루트의 `.env`에서 `JOKER_PROFILE`, 모델 주소와 역할별 모델 설정을 확인하세요.
+환경 점검은 프로젝트 루트에서 `.venv/bin/joker doctor`로 할 수 있습니다.
+설정 예시는 [`.env.example`](.env.example)에 있습니다. API 키를 넣은 `.env`는 Git에 올리지 않습니다.
+
+### ② 평소 실행할 때 (권장)
+
+**`web` 폴더에서 아래 명령 하나만 실행합니다.** 이미 설치했다면 매번 `npm ci`를 할 필요는 없습니다.
+
+```bash
+npm run dev:all
+```
+
+예를 들어 프로젝트를 Mac 바탕화면에 두었다면:
+
+```bash
+cd ~/Desktop/핵심프로젝트/model/web
+npm run dev:all
+```
+
+이 명령은 **웹 화면(Vite)과 진단 API(FastAPI)를 함께 실행**합니다.
+프로젝트의 `.venv`에 설치된 Python을 자동으로 사용하므로, 평소 실행할 때는 가상환경을 별도로 활성화하지 않아도 됩니다.
+
+| 구분 | 주소 | 용도 |
+|---|---|---|
+| **사용할 웹 화면** | [http://127.0.0.1:5173](http://127.0.0.1:5173) | 브라우저에서 여기를 여세요 |
+| 진단 API | [http://127.0.0.1:8000/api/health](http://127.0.0.1:8000/api/health) | 서버 연결 확인용 JSON |
+
+터미널에 `VITE ... ready`와 `Uvicorn running ... 8000`이 표시되면 브라우저에서 웹 화면을 여세요.
+첫 화면은 서비스 소개이며, 상단 **지시문 진단**이나 **무료 진단 시작** 버튼으로 들어갑니다.
+로그인·회원가입은 상단 로그인 메뉴에 있습니다.
+
+- 서버를 사용하는 동안 **실행한 터미널을 열어 두세요.**
+- 종료하려면 실행 중인 터미널에서 **`Ctrl+C`**를 누릅니다. 웹과 API가 함께 종료됩니다.
+- 다시 켤 때도 같은 위치에서 `npm run dev:all`을 실행하면 됩니다.
+- 개발 중 화면 코드 수정은 자동 반영됩니다. Python 코드나 `.env` 수정 후에는 서버를 종료하고 다시 실행하세요.
+
+### ③ 자주 발생하는 실행 오류
+
+**`Port 5173 is already in use` / `8000 ... address already in use`**
+
+이미 다른 터미널이나 개발 도구에서 서버가 실행 중입니다. 먼저 위 웹 주소를 열어 보세요.
+정상적으로 열리면 기존 서버를 이용하면 됩니다. 새로 실행하려면 **기존 서버를 띄운 터미널에서 `Ctrl+C`**로 종료한 뒤 다시 실행하세요.
+브라우저 탭만 닫아서는 서버가 종료되지 않습니다.
+
+어느 프로세스가 사용하는지 확인하려면(macOS/Linux):
+
+```bash
+lsof -nP -iTCP:5173 -iTCP:8000 -sTCP:LISTEN
+```
+
+출력의 `COMMAND`와 `PID`를 확인하세요. 다른 프로그램의 프로세스를 일괄 종료하지 마세요.
+API만 이미 켜져 있고 웹 서버는 꺼져 있다면 `web`에서 **`npm run dev`**만 실행해도 됩니다.
+
+| 오류 또는 증상 | 해결 방법 |
+|---|---|
+| `npm: command not found` | Node.js와 npm을 설치한 뒤 터미널을 다시 여세요. |
+| `package.json`을 찾을 수 없음 (`ENOENT`) | 프로젝트의 `web` 폴더로 이동한 뒤 실행하세요. |
+| `vite: command not found` / 웹 패키지 없음 | `web` 폴더에서 `npm ci`를 실행하세요. |
+| `No module named uvicorn` 또는 `joker` | 프로젝트 루트에서 `.venv/bin/python -m pip install -e ".[web]"`를 실행하세요. |
+| 화면은 열리지만 서버 연결 오류 | API 터미널 오류와 위 `/api/health` 주소를 확인하세요. |
+| 대상 모델 연결 실패 | Ollama가 실행 중인지, 모델을 받았는지, `.env`의 모델 주소·설정이 맞는지 확인하세요. |
+| JOKER-KO 탐지기 미준비 | 아래 탐지 모델 설치 조건을 확인하세요. 지시문 진단과 별개의 모델입니다. |
+
+### ④ 빌드한 화면으로 실행할 때 (시연용)
+
+개발 서버 대신, 빌드한 웹을 API 서버 한 개로 제공할 수도 있습니다.
+**기존 개발 서버를 `Ctrl+C`로 종료한 뒤** `web` 폴더에서 실행합니다.
+
+```bash
 npm run build
 npm start
 ```
 
-[웹 화면 열기](http://127.0.0.1:8000). `npm start`가 Python 진단 API와 빌드된 React 화면을
-같은 서버로 제공합니다. `/runs/진단ID` 같은 상세 주소를 새로고침해도 열립니다.
-진단·탐지 엔진은 Python을 유지하고 모든 사용자 화면은 React/Vite로 실행합니다.
+이 방식의 접속 주소는 **[http://127.0.0.1:8000](http://127.0.0.1:8000)**입니다 (`5173`이 아닙니다).
+상세 결과 주소를 새로고침해도 열립니다. 화면 코드를 수정하면 `npm run build`를 다시 해야 반영됩니다.
+종료는 `Ctrl+C`입니다. 개발 실행과 빌드 실행은 같은 API 포트를 쓰므로 동시에 실행하지 마세요.
 
-처음 설치한 환경에서 개발 서버를 실행하는 전체 명령은 다음과 같습니다.
+### 모델 없이 화면 흐름 확인 / 탐지 모델 준비
+
+가짜 진단 응답으로 동작 흐름만 확인하려면 `web`에서 실행합니다.
 
 ```bash
-# 프로젝트 루트에서 Python 설치·설정을 마친 뒤
-cd web
-npm ci
-npm run dev:all
+JOKER_PROFILE=mock VICTIM_BACKEND=mock RECON_BACKEND=mock JUDGE_BACKEND=mock npm run dev:all
 ```
 
-API와 개발 화면이 함께 실행되며, 종료는 `Ctrl+C`입니다.
+Mock의 등급·공격 성공률은 실제 측정값이 아닙니다. JOKER-KO 입력문 검사는 별도의 학습 모델을 사용합니다.
+탐지 기능까지 사용하려면 학습 모델 폴더 `detector/artifacts/joker-ko`를 준비하고,
+프로젝트 루트에서 추론 의존성을 설치하세요.
 
-개발할 때는 `web` 폴더에서 `npm run dev:all`을 실행하면 API와 Vite가 함께 시작됩니다.
-[개발 화면 열기](http://127.0.0.1:5173). 이미 API가 실행 중이면 `npm run dev`만 실행하세요.
-`Ctrl+C`로 함께 실행한 서버를 종료합니다.
+```bash
+.venv/bin/python -m pip install -e ".[detect]"
+```
 
-- `JOKER_API_PORT`: 함께 시작하는 API 포트 (기본 `8000`).
-- `JOKER_API_URL`: 개발 프록시의 API 주소. 브라우저는 항상 같은 출처의 `/api`를 호출합니다.
-- `JOKER_PYTHON`: Python 실행 파일. 기본은 프로젝트의 `.venv`를 사용합니다.
+완료된 진단과 계정은 기존 DB에 저장됩니다. 진행/실패 상태는 서버 메모리에 있어 서버를 재시작하면 복구되지 않습니다.
+
+### 실행 환경 변수 / 이전 화면
+
+- `JOKER_API_PORT`: 통합 실행의 API 포트 (기본 `8000`).
+- `JOKER_API_URL`: 개발 프록시가 연결할 API 주소. 브라우저는 항상 같은 출처의 `/api`를 호출합니다.
+- `JOKER_PYTHON`: Python 실행 파일. 기본은 프로젝트의 `.venv`입니다.
 - `JOKER_WEB_DIST`: 별도로 배포한 웹 빌드 폴더 (기본 `web/dist`).
 
-웹에서 회원가입·로그인·무료 체험·모델 선택/BYOK·진단 진행·리포트·공격 상세·보강안 복사/비교·
-탐지·대시보드·이력 검색/페이지 이동·진단 삭제·설정/검증 근거를 사용할 수 있습니다.
-오류 진단은 실행 중인 서버의 메모리에 보관되어 서버를 재시작하면 목록에서 사라집니다.
-완료된 진단과 계정은 기존 DB를 사용합니다.
+예를 들어 API 포트만 바꾸려면 `web`에서 `JOKER_API_PORT=8001 npm run dev:all`을 실행합니다.
+웹 주소는 그대로 `5173`이며, 이 방법으로 웹 포트 `5173` 충돌이 해결되지는 않습니다.
 
-> 모델 없이 흐름을 확인하려면 `JOKER_PROFILE=mock npm start`로 실행하세요.
-> Mock은 가짜 진단 응답이며 실제 측정값으로 인용할 수 없습니다.
-> JOKER-KO 탐지는 별도로 학습 모델(`detector/artifacts/joker-ko`)과 `.[detect]` 설치가 필요합니다.
-
-기존 Streamlit 화면이 필요하면 `pip install -e ".[web,legacy-ui]"` 후 API 서버와
-`streamlit run ui/streamlit_app.py`를 각각 실행할 수 있습니다.
+기존 Streamlit 화면이 필요하면 프로젝트 루트에서 `pip install -e ".[web,legacy-ui]"`를 설치하고,
+API 서버와 `streamlit run ui/streamlit_app.py`를 별도 터미널에서 실행합니다.
+현재 기본 사용 화면은 React 웹입니다. [웹 기능·테스트 안내](web/README.md)도 참고하세요.
 
 ### 명령줄로 쓰기
 
@@ -401,7 +487,7 @@ flowchart TD
 | 탐지 모델 JOKER-KO (ML + 규칙 2중) | 완료 |
 | 실측 (ASR · F1 · 방어 조합 · OOD · 판정기) | 완료 |
 | API (FastAPI, 웹 전환 추가 계약 포함) | 구현 완료 |
-| React 웹 7개 화면 (인증 · 새 진단 · 결과 · 대시보드 · 진단 목록 · 탐지기 · 설정) | 기능 전환 완료, 디자인 개편 예정 |
+| React 웹 7개 화면 (인증 · 새 진단 · 결과 · 대시보드 · 진단 목록 · 탐지기 · 설정) | 기능 전환 완료 · 다크 테마·상단 메뉴·결과 구역 분리 적용 |
 | 자동화 테스트 | Python API·엔진·보안·웹 제공 테스트 + Vitest 웹 동작 테스트 |
 | 웹 실행 | `npm run dev:all` (개발), `npm run build` 후 `npm start` (빌드본) |
 

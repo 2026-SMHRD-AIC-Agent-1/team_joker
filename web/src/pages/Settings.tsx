@@ -35,6 +35,6 @@ export function Settings() {
     <Section title="검증 근거" /><ToolEvidence />
     <Section title="계정" />
     {loggedIn ? <div className="card"><p>로그인 중 · {email}</p><button className="btn" disabled={busy} onClick={async () => { setBusy(true); await logout(); nav("/"); }}>{busy ? "로그아웃 중…" : "로그아웃"}</button></div>
-      : <div className="card"><p>비회원입니다. 로그인하면 진단 이력과 보강안 전문을 볼 수 있습니다.</p><Link className="btn" to="/">로그인 · 회원가입</Link></div>}
+      : <div className="card"><p>비회원입니다. 로그인하면 진단 이력과 보강안 전문을 볼 수 있습니다.</p><Link className="btn" to="/login">로그인 · 회원가입</Link></div>}
   </>;
 }
