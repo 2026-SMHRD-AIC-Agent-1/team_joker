@@ -34,14 +34,15 @@ export function EvidenceDialog({ open, onClose, metrics = METRICS }: { open: boo
   );
 }
 
-export function ToolEvidence({ metrics = METRICS }: { metrics?: Metrics }) {
+export function ToolEvidence({ metrics = METRICS, heading = true }:
+  { metrics?: Metrics; heading?: boolean }) {
   const [open, setOpen] = useState(false);
   const cards = evidenceCards(metrics);
   if (!cards.length) return null;
   return (
     <section aria-label="이 도구의 검증 근거">
-      <Section title="이 도구의 검증 근거"
-        desc="지금 이 계정의 진단이 아니라, 별도 데이터로 우리가 측정한 값입니다. 측정 조건·출처·한계는 ‘근거 전체 보기’ 에 있습니다." />
+      {heading ? <Section title="이 도구의 검증 근거"
+        desc="지금 이 계정의 진단이 아니라, 별도 데이터로 우리가 측정한 값입니다. 측정 조건·출처·한계는 ‘근거 전체 보기’ 에 있습니다." /> : null}
       <div className="ev" style={{ marginTop: 8 }}>
         {cards.map((c) => (
           <div className="ev-card" key={c.title} data-testid="ev-card">

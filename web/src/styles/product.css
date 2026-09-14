@@ -949,3 +949,329 @@ a,button {
     grid-template-columns: repeat(2, 1fr)
   }
 }
+
+/* ───────── 0914 3차 — 텍스트 감량. 읽을 것을 줄이고 볼 것을 늘린다. ───────── */
+
+/* 히어로 우측 공격 구조 — 설명 문구를 빼고 이름만 칩으로 */
+.tech-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 14px 0 4px
+}
+.tech-chip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid #27344a;
+  border-radius: 10px;
+  background: #101a29;
+  font-size: 14px;
+  font-weight: 600;
+  color: #cdd9ec
+}
+.tech-chip span {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .5px;
+  color: #6f83a3
+}
+
+/* 방어 구성 네 가지 — 칸 나열에서 막대로. 길이는 value 의 퍼센트에서만 온다. */
+.lad-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 14px 0 10px
+}
+.lb-row {
+  display: grid;
+  grid-template-columns: 116px 1fr 78px;
+  grid-template-areas: "l t v" ". d d";
+  align-items: center;
+  gap: 4px 12px
+}
+.lb-l {
+  grid-area: l;
+  font-size: 13.5px;
+  color: #b5c4da
+}
+.lb-track {
+  grid-area: t;
+  height: 12px;
+  border-radius: 999px;
+  background: #1a2436;
+  overflow: hidden
+}
+.lb-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #ff91a4, #ffb580);
+  transition: width .3s
+}
+.lb-v {
+  grid-area: v;
+  text-align: right;
+  font-size: 14px;
+  color: #ffb0bd
+}
+.lb-d {
+  grid-area: d;
+  font-size: 11.5px;
+  color: #7e90ab
+}
+.lb-best .lb-fill {
+  background: linear-gradient(90deg, #6bd8ad, #9ff0cf)
+}
+.lb-best .lb-v {
+  color: #6bd8ad
+}
+.lb-best .lb-l {
+  font-weight: 700;
+  color: #dce7ff
+}
+/* 0건 칸은 막대가 비어 보이므로 최소 흔적을 남긴다(값은 여전히 숫자가 말한다) */
+.lb-best .lb-track {
+  box-shadow: inset 0 0 0 1px #6bd8ad4d
+}
+
+@media (max-width: 760px) {
+  .tech-list {
+    grid-template-columns: 1fr
+  }
+  .lb-row {
+    grid-template-columns: 96px 1fr 66px
+  }
+}
+
+/* ───────── 0914 4차 — 대시보드 카드·차트. 읽는 화면에서 보는 화면으로. ───────── */
+
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin: 8px 0 22px
+}
+.kpi-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 20px;
+  border: 1px solid #27344a;
+  border-radius: 16px;
+  background: linear-gradient(160deg, #121d2e, #0e1725)
+}
+.kpi-icon {
+  flex: 0 0 auto;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: #1b2740;
+  position: relative
+}
+.kpi-icon::after {
+  content: "";
+  position: absolute;
+  inset: 12px;
+  border-radius: 4px;
+  background: #789eff
+}
+.ic-alert::after { border-radius: 50%; background: #ff91a4 }
+.ic-grade::after { border-radius: 50%; background: #f3c571 }
+.ic-trend::after { border-radius: 2px; background: #6bd8ad }
+.kpi-body { min-width: 0 }
+.kpi-l {
+  font-size: 13px;
+  color: #9eafca;
+  margin-bottom: 6px
+}
+.kpi-v {
+  font-size: 30px;
+  font-weight: 750;
+  line-height: 1.15;
+  color: #dce7ff;
+  letter-spacing: -.5px
+}
+.kpi-s {
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #7e90ab
+}
+
+.chart-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin-bottom: 24px
+}
+.chart-card {
+  padding: 20px;
+  border: 1px solid #27344a;
+  border-radius: 16px;
+  background: #101a29;
+  min-width: 0
+}
+.cc-t {
+  font-size: 14px;
+  font-weight: 700;
+  color: #dce7ff;
+  margin-bottom: 16px
+}
+.cc-note {
+  margin: 14px 0 0;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: #7e90ab
+}
+
+/* 도넛 */
+.donut-wrap {
+  display: flex;
+  align-items: center;
+  gap: 16px
+}
+.donut {
+  flex: 0 0 132px;
+  width: 132px;
+  height: 132px
+}
+.donut-n {
+  font-size: 26px;
+  font-weight: 750;
+  fill: #dce7ff
+}
+.donut-l {
+  font-size: 11px;
+  fill: #7e90ab
+}
+.legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px
+}
+.legend li {
+  display: grid;
+  grid-template-columns: 9px 1fr auto auto;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px
+}
+.legend i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%
+}
+.lg-n {
+  color: #b5c4da;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap
+}
+.legend b { color: #dce7ff }
+.legend em {
+  font-style: normal;
+  color: #7e90ab;
+  min-width: 34px;
+  text-align: right
+}
+
+/* 가로 막대(등급) */
+.hbars {
+  display: flex;
+  flex-direction: column;
+  gap: 10px
+}
+.hb {
+  display: grid;
+  grid-template-columns: 18px 1fr 44px;
+  align-items: center;
+  gap: 10px
+}
+.hb-l {
+  font-size: 14px;
+  font-weight: 750
+}
+.hb-track {
+  height: 10px;
+  border-radius: 999px;
+  background: #1a2436;
+  overflow: hidden
+}
+.hb-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px
+}
+.hb-v {
+  font-size: 12.5px;
+  color: #b5c4da;
+  text-align: right
+}
+
+/* 세로 막대(모델) */
+.vbars {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  height: 150px
+}
+.vb {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  height: 100%
+}
+.vb-v {
+  font-size: 13px;
+  color: #dce7ff
+}
+/* ★ 트랙에 배경을 깔면 값이 작은 칸이 '큰 회색 막대' 로 읽힌다(0914 캡처에서 8% 칸이 제일 커 보였다).
+   트랙은 바닥선만 남기고 비운다 — 길이를 말하는 것은 채운 부분뿐이어야 한다. */
+.vb-track {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  align-items: flex-end;
+  background: transparent;
+  border-bottom: 1px solid #27344a
+}
+.vb-fill {
+  width: 100%;
+  background: linear-gradient(180deg, #789eff, #4c6fd1);
+  border-radius: 6px 6px 0 0;
+  min-height: 3px
+}
+.vb-l {
+  font-size: 11px;
+  color: #b5c4da;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap
+}
+.vb-n {
+  font-size: 10.5px;
+  color: #7e90ab
+}
+
+@media (max-width: 1100px) {
+  .kpi-grid { grid-template-columns: repeat(2, 1fr) }
+  .chart-grid { grid-template-columns: 1fr }
+  .donut-wrap { gap: 22px }
+}
+@media (max-width: 560px) {
+  .kpi-grid { grid-template-columns: 1fr }
+  .donut-wrap { flex-direction: column; align-items: stretch }
+  .donut { align-self: center }
+}

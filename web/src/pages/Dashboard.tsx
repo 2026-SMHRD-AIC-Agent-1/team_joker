@@ -7,13 +7,13 @@ import { NetworkError } from "../api/client";
 import { PageHeader } from "../components/PageHeader";
 import { RunTable } from "../components/RunTable";
 import { Section } from "../components/Section";
-import { StatRow } from "../components/StatRow";
+import { FindingsDonut, GradeBars, ModelBars } from "../components/DashCharts";
 import { EmptyState, ServerDown, Skeleton } from "../components/States";
 import { ToolEvidence } from "../components/ToolEvidence";
 import { TrendChart, trendPoints } from "../components/TrendChart";
 import { useApi } from "../hooks/useApi";
 import { actionRequired, comparableRun, isMock } from "../lib/format";
-import { sev } from "../lib/meta";
+import { GRADE_COLOR, sev } from "../lib/meta";
 
 export interface DashStats {
   real: RunRow[]; mockN: number; need: number; openRuns: RunRow[];
@@ -81,16 +81,30 @@ export function Dashboard() {
   return (
     <>
       {header}
-      <StatRow items={[
-        { label: "조치가 필요한 발견 항목", value: `${s.need}건`,
-          sub: s.need ? `진단 ${s.openRuns.length}건에 남아 있습니다` : "남아 있는 항목이 없습니다",
-          color: s.need ? sev("unresolved") : sev("resolved") },
-        { label: "진단한 지시문", value: `${s.real.length}건`, sub: "누적 (mock 제외)" },
-        { label: "최근 진단 등급", value: s.latest?.grade ?? "—",
-          sub: s.latest ? (s.latest.target_model ?? "-") : "등급이 매겨진 실제 진단 없음" },
-        { label: "평균 변화량", value: avg.text, color: avg.color,
-          sub: s.deltas.length ? `비교 가능한 ${s.deltas.length}건 기준` : "비교 가능한 진단 없음" },
-      ]} />
+      {/* ★ KPI 카드. '안전한 지시문' 같은 칸은 만들지 않는다 — 우리는 '안전' 을 선언하지 않는다(README §6).
+          네 칸 모두 GET /api/runs 의 값에서 바로 나온다. */}
+      <div className="kpi-grid">
+        {[
+          { k: "need", label: "조치가 필요한 발견 항목", value: `${s.need}건`,
+            sub: s.need ? `진단 ${s.openRuns.length}건에 남아 있습니다` : "남아 있는 항목이 없습니다",
+            color: s.need ? sev("unresolved") : sev("resolved"), icon: "alert" },
+          { k: "runs", label: "진단한 지시문", value: `${s.real.length}건`, sub: "누적 (mock 제외)", icon: "doc" },
+          { k: "grade", label: "최근 진단 등급", value: s.latest?.grade ?? "—",
+            sub: s.latest ? (s.latest.target_model ?? "-") : "등급이 매겨진 실제 진단 없음",
+            color: s.latest?.grade ? GRADE_COLOR[s.latest.grade] : undefined, icon: "grade" },
+          { k: "delta", label: "평균 변화량", value: avg.text, color: avg.color,
+            sub: s.deltas.length ? `비교 가능한 ${s.deltas.length}건 기준` : "비교 가능한 진단 없음", icon: "trend" },
+        ].map((x) => (
+          <div className="kpi-card" key={x.k}>
+            <span className={`kpi-icon ic-${x.icon}`} aria-hidden="true" />
+            <div className="kpi-body">
+              <div className="kpi-l">{x.label}</div>
+              <div className="kpi-v num" style={x.color ? { color: x.color } : undefined}>{x.value}</div>
+              <div className="kpi-s">{x.sub}</div>
+            </div>
+          </div>
+        ))}
+      </div>
       {s.incomparableN ? (
         <p className="fine">※ 보강 전·후가 서로 다른 공격 집합으로 실행된 진단 {s.incomparableN}건은 ‘평균 변화량’ 에서 제외했습니다(비교 불가).</p>
       ) : null}
@@ -103,8 +117,13 @@ export function Dashboard() {
           실제 모델로 한 번 진단하면 여기에 값이 채워집니다.</div>
       ) : null}
 
-      {/* ★ 지표 줄 바로 아래 — 시연 첫 화면에서 스크롤 없이 보인다(0911 결정). */}
-      <ToolEvidence />
+      {/* ★ 0914: 지표 줄 아래 자리는 '이 계정의 실제 집계' 가 갖는다. 도구의 검증 근거(별도 데이터)는
+          아래로 내리고 접었다 — 두 종류의 숫자가 같은 높이에 있으면 어느 쪽이 내 결과인지 헷갈린다. */}
+      <div className="chart-grid">
+        <FindingsDonut runs={s.real} />
+        <GradeBars runs={s.real} />
+        <ModelBars runs={s.real} />
+      </div>
 
       {/* ★ 0914: 아래 '최근 진단' 과 같은 행이 두 번 그려지던 문제 — 여기 이미 보인 진단은 아래에서 뺀다.
           이 도구는 대부분의 진단에 조치가 남아 표가 통째로 겹쳤다. */}
@@ -134,6 +153,10 @@ export function Dashboard() {
       {runs.length > shown.size ? (
         <Link className="btn" style={{ marginTop: 12, minWidth: 220 }} to="/history">전체 {runs.length}건 보기 →</Link>
       ) : null}
+      <details className="xp" style={{ marginTop: 24 }}>
+        <summary>이 도구의 검증 근거 — 별도 데이터로 측정한 값</summary>
+        <div className="xp-body"><ToolEvidence heading={false} /></div>
+      </details>
     </>
   );
 }
