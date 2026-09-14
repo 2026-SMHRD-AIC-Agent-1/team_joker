@@ -133,6 +133,10 @@ def main(argv=None):
     ap.add_argument("--baseline-pos-index", type=int, default=None)
     ap.add_argument("--skip-baseline", action="store_true",
                     help="baseline(게이트 모델) 평가를 건너뛴다 — 토큰 없거나 오프라인일 때")
+    ap.add_argument("--dump-probs", default=None, metavar="FILE",
+                    help="모델별 양성확률을 JSON 으로 저장한다. 0.5 문턱 하나로만 비교하면 "
+                         "오탐률이 서로 다른 모델을 같은 줄에 세우게 된다 — 저장해 두면 "
+                         "'같은 FPR 에서의 재현율'(동일 작동점) 을 나중에 계산할 수 있다.")
     args = ap.parse_args(argv)
 
     rows = load_jsonl(args.test)
@@ -144,6 +148,7 @@ def main(argv=None):
               "Recall/FNR 만 읽으세요(OOD 세트가 그렇습니다).")
 
     results = []
+    probs_by_model: dict[str, list[float]] = {}
     if args.skip_baseline:
         print("\n[건너뜀] baseline 평가 생략(--skip-baseline)")
     else:
@@ -152,12 +157,14 @@ def main(argv=None):
         if b_pred is not None:
             results.append(report("baseline(원본)", y, b_pred))
             diagnose("baseline(원본)", y, b_pred, b_prob, texts)
+            probs_by_model["baseline(원본)"] = b_prob
     for m in args.extra:
         print(f"\n=== 비교 모델: {m} ===")
         e_pred, e_prob = _try_predict(m, texts, args.max_len, None)
         if e_pred is not None:
             results.append(report(f"비교:{m}", y, e_pred))
             diagnose(f"비교:{m}", y, e_pred, e_prob, texts)
+            probs_by_model[f"비교:{m}"] = e_prob
 
     ft = Path(args.finetuned)
     if ft.exists():
@@ -165,6 +172,7 @@ def main(argv=None):
         f_pred, f_prob = predict(str(ft), texts, args.max_len, None)
         results.append(report("JOKER-KO(파인튜닝)", y, f_pred))
         diagnose("JOKER-KO(파인튜닝)", y, f_pred, f_prob, texts)
+        probs_by_model["JOKER-KO(파인튜닝)"] = f_prob
     else:
         print(f"\n[안내] 파인튜닝 모델 없음({ft}) — train.py 먼저. baseline/비교만 출력.")
 
@@ -176,6 +184,17 @@ def main(argv=None):
     for r in results:
         print(f"{r['name']:<24}{r['f1']:>8.3f}{r['r']:>8.3f}{r['fnr']:>8.3f}")
     print("→ Recall↑ / FNR↓ = 놓치던 한국어 공격을 잡게 됐다 = 프로젝트 핵심 주장")
+    if args.dump_probs:
+        out = Path(args.dump_probs)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(json.dumps({
+            "test": str(Path(args.test)),
+            "threshold": 0.5,
+            "texts": texts,
+            "labels": y,
+            "probs": probs_by_model,
+        }, ensure_ascii=False), encoding="utf-8")
+        print(f"[저장] 양성확률 {len(probs_by_model)}개 모델 × {len(texts)}행 → {out}")
 
 
 if __name__ == "__main__":
