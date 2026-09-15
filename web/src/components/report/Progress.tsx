@@ -9,6 +9,14 @@ export const STAGE_KO: Record<string, string> = {
   recon: "지시문 분석", attack_r1: "공격 진단", patch: "방어 문구 생성", attack_r2: "재진단", report: "결과 정리",
 };
 
+const STAGE_HINT: Record<string, string> = {
+  recon: "지시문에서 보호할 정보와 보안 규칙을 살펴보고 있어요.",
+  attack_r1: "다양한 공격으로 보안 규칙이 잘 지켜지는지 확인하고 있어요.",
+  patch: "발견된 취약점을 바탕으로 방어 문구를 만들고 있어요.",
+  attack_r2: "보강한 지시문에 같은 공격을 보내 개선 여부를 확인하고 있어요.",
+  report: "진단 결과와 보강 내용을 정리하고 있어요.",
+};
+
 export interface StageRow { key: string; label: string; state: "done" | "cur" | "todo"; detail: string }
 
 export function stageRows(p: P): StageRow[] {
@@ -37,15 +45,26 @@ export function ProgressView({ progress, estimatedCalls, startedAt, mode }: {
 }) {
   const elapsed = useElapsed(startedAt);
   const rows = stageRows(progress);
+  const current = rows.find(row => row.state === "cur");
   return (
     <div className="prog">
-      <div>
+      <div className="prog-clock">
+        <div className={`prog-orbit${progress.queued ? " is-queued" : ""}`} aria-hidden="true">
+          <svg viewBox="0 0 48 48" fill="none"><path d="M24 5 39 11v12c0 9-6 15-15 20C15 38 9 32 9 23V11L24 5Z" fill="currentColor" opacity=".12"/><path d="M24 5 39 11v12c0 9-6 15-15 20C15 38 9 32 9 23V11L24 5Z" stroke="currentColor" strokeWidth="2"/><path d="m17 24 5 5 10-11" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/></svg>
+        </div>
         <div className="ml">경과 시간</div>
         {/* 다른 탭에서 시작한 진단이면 시작 시각을 모른다 — 0:00 부터 세지 않고 모른다고 둔다. */}
-        <div className="elapsed num">{elapsed === null ? "—" : `${Math.floor(elapsed / 60)}:${String(elapsed % 60).padStart(2, "0")}`}</div>
+        <div className="elapsed num" role="timer" aria-label="진단 경과 시간">{elapsed === null ? "—" : `${Math.floor(elapsed / 60)}:${String(elapsed % 60).padStart(2, "0")}`}</div>
         <div className="cell-sub">{mode === "full" ? "정밀 · 예상 3~4분" : mode === "screening" ? "스크리닝 · 예상 약 90초" : "모델과 대기 상황에 따라 다릅니다"}</div>
+        {progress.queued ? <p className="fine">대기 시간을 포함합니다</p> : null}
       </div>
-      <div>
+      <div className="prog-body">
+        <div className="prog-activity" role="status" aria-live="polite" aria-atomic="true">
+          <div className="prog-activity-title"><span className="prog-dots" aria-hidden="true"><i /><i /><i /></span>
+            <strong>{progress.queued ? "진단 순서를 기다리고 있어요" : current ? `${current.label} 중이에요` : "진단을 준비하고 있어요"}</strong>
+          </div>
+          <p>{progress.queued ? "순서가 되면 자동으로 시작됩니다." : STAGE_HINT[current?.key ?? ""] ?? "진단 상태를 확인하고 있어요. 잠시만 기다려 주세요."}</p>
+        </div>
         {progress.queued ? (
           <>
             {/* ★ 대기 중을 '지시문 분석 중' 으로 그리면 멈춘 화면이 된다. 사실을 그대로 말한다. */}
@@ -56,8 +75,8 @@ export function ProgressView({ progress, estimatedCalls, startedAt, mode }: {
           <>
             <div className="stg" data-testid="stages">
               {rows.map((r, i) => (
-                <div className={`row ${r.state}`} key={r.key}>
-                  <span className="mk">{r.state === "done" ? "✓" : i + 1}</span><span>{r.label}</span><span className="d">{r.detail}</span>
+                <div className={`row ${r.state}`} key={r.key} aria-current={r.state === "cur" ? "step" : undefined}>
+                  <span className="mk">{r.state === "done" ? "✓" : i + 1}</span><span>{r.label}</span><span className="d">{r.state === "cur" ? <span className="prog-spinner" aria-hidden="true" /> : null}{r.detail}</span>
                 </div>
               ))}
             </div>
