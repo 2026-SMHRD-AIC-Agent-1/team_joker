@@ -58,7 +58,7 @@ export function DetectionCard({ d }: { d: DetectResult }) {
   );
 }
 
-export function Detect() {
+export function Detect({ embedded = false }: { embedded?: boolean }) {
   const location = useLocation();
   const prefill = (location.state as DetectPrefill | null) ?? null;
   const h = useHealth();
@@ -95,9 +95,7 @@ export function Detect() {
 
   return (
     <>
-      <PageHeader eyebrow="SINGLE CHECK · JOKER-KO" title="입력문 검사"
-        desc={<>문구를 하나 넣어 <b>이것이 한국어 프롬프트 인젝션인지</b> 판정합니다. 실제 서비스에 붙이면 이 판정이 사용자 요청마다 챗봇
-          앞단에서 돕니다. 이 화면은 운영 트래픽을 감시하지 않습니다 — 넣은 문구 하나만 검사합니다.</>} />
+      {!embedded && <PageHeader title="입력문 검사" desc="입력문 하나의 공격 의도를 확인합니다." />}
       {h && !h.detector_ready ? noModel : null}
       <SubSection title="예시로 넣어보기" />
       <div className="ex-grid">
@@ -131,10 +129,7 @@ export function Detect() {
               actions={["문구를 바꿔 다시 시도", "반복되면 API 서버 로그 확인"]} />
           ) : fail instanceof NetworkError ? <ServerDown /> : <ServerDown />) : null}
       </div>
-      <div className="notice" style={{ marginTop: 24 }}>
-        <b>진단</b>은 배포 <b>전에</b> 내 지시문을 검사하고(공격 시드 수십 종 · 수 분), <b>입력 탐지</b>는 운영 <b>중에</b> 사용자가 보낸 문구를
-        요청마다 거릅니다(0.1초). 지시문 보강만으로 막지 못한 공격이 남기 때문에 기능이 두 개입니다.
-      </div>
+
     </>
   );
 }
