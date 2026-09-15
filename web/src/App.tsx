@@ -5,8 +5,7 @@ import { Layout } from "./components/Layout";
 import { AuthPage } from "./pages/AuthPage";
 import { Dashboard } from "./pages/Dashboard";
 import { History } from "./pages/History";
-import { Detect } from "./pages/Detect";
-import { NewRun } from "./pages/NewRun";
+import { DiagnosePage, DetectPage } from "./pages/ProductPages";
 import { RunPage } from "./pages/RunPage";
 import { Landing } from "./pages/Landing";
 import { Settings } from "./pages/Settings";
@@ -26,10 +25,10 @@ export default function App() {
         <Route path="/login" element={loggedIn ? <Navigate to="/dashboard" replace /> : <AuthPage />} />
         <Route path="/dashboard" element={<RequireLogin><Dashboard /></RequireLogin>} />
         <Route path="/history" element={<RequireLogin><History /></RequireLogin>} />
-        <Route path="/diagnose" element={<NewRun />} />
+        <Route path="/diagnose" element={<DiagnosePage />} />
         <Route path="/runs/:runId" element={<RunPage key={token ?? "guest"} />} />
         <Route path="/runs/:runId/f/:fid" element={<RunPage key={token ?? "guest"} />} />
-        <Route path="/detect" element={<Detect />} />
+        <Route path="/detect" element={<DetectPage />} />
         <Route path="/settings" element={<Settings />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

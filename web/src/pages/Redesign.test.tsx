@@ -14,7 +14,7 @@ it("첫 화면은 로그인 폼 대신 서비스 소개와 무료 진단 링크�
   expect(screen.getByRole("link", { name: "무료로 진단 시작하기 →" }).getAttribute("href")).toBe("/diagnose");
   // ★ 내부 이동에 ↗(외부 링크 관용 기호)를 쓰지 않는다
   expect(document.body.textContent).not.toContain("↗");
-  expect(screen.getByText("예시 화면")).toBeTruthy();
+  expect(screen.queryByRole("heading", { name: /의심스러운 입력/ })).toBeNull();
 });
 
 const run = {
