@@ -6,6 +6,8 @@ import type { Gated, Report, Run } from "../../api/types";
 import { EvidenceCards } from "./Evidence";
 import { Findings } from "./Findings";
 import { GATE_DECOY } from "./Gate";
+import { metric } from "../../evidence/metrics";
+import { FilterLayerDetail } from "./Layers";
 import { Inconclusive } from "./Outcomes";
 import { Prescription } from "./Prescription";
 import { ProgressView, stageRows } from "./Progress";
@@ -86,4 +88,25 @@ it("JOKER-KO 안내는 서버 단계에만 반응하고 경과 시간을 유지�
   rerender(<ProgressView progress={{stage_index:0, queued:false, stages:[{key:'report',label:'결과 정리'}]}} startedAt={Date.now()-5000} mode="screening" />);
   expect(screen.getByRole('status').textContent).not.toContain('JOKER-KO');
   expect(screen.getByRole('timer')).toBeTruthy();
+});
+
+describe("JOKER-KO 사후 검사", () => {
+  const base = { residual: 24, rule_blockable: 1, flags: {}, note: "이번에 남은 공격 24건 중 23건을 입력단 필터의 차단 대상으로 분류했습니다.", basis: "rules_and_ml" };
+  const rep = (fr: object) => ({ filter_recommendation: fr } as unknown as Report);
+
+  it("ML 추가 탐지 수를 보여줄 때는 학습 시드와 겹친다는 단서와 처음 보는 공격 기준 수치를 함께 낸다", () => {
+    render(<FilterLayerDetail rep={rep({ ...base, status: "completed", checked: 24, unchecked: 0, ml_additional: 22, detected_total: 23, undetected: 1, model: "joker-ko", threshold: 0.5 })} />);
+    const note = screen.getByTestId("training-overlap").textContent ?? "";
+    expect(note).toContain("이 수치는 탐지 성능 지표가 아닙니다");
+    expect(note).toContain(metric("ood_recall")!.value);
+    expect(note).toContain(metric("fpr")!.value);
+  });
+
+  it("ML 수치가 없으면(실패·과거 기록) 단서도 내지 않는다", () => {
+    render(<FilterLayerDetail rep={rep({ ...base, status: "failed", ml_additional: null, undetected: null })} />);
+    expect(screen.queryByTestId("training-overlap")).toBeNull();
+    cleanup();
+    render(<FilterLayerDetail rep={rep({ ...base, status: "not_recorded" })} />);
+    expect(screen.queryByTestId("training-overlap")).toBeNull();
+  });
 });

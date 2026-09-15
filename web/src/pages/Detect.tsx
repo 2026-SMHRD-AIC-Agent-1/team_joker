@@ -47,7 +47,7 @@ export function DetectionCard({ d }: { d: DetectResult }) {
             <>
               <div><b>규칙 탐지(난독화):</b> {flags.map((f) => <span className="pill" key={f}>{f}</span>)}</div>
               {score < thr && inj ? (
-                <div className="notice" style={{ marginTop: 10 }}>💡 ML 점수은 낮지만(놓칠 뻔), <b>규칙 필터가 난독화를 잡아</b> 최종 INJECTION 으로
+                <div className="notice" style={{ marginTop: 10 }}>💡 ML 점수는 낮지만(놓칠 뻔), <b>규칙 필터가 난독화를 잡아</b> 최종 INJECTION 으로
                   판정했습니다 → ML + 규칙 <b>2중 방어</b>가 작동한 예입니다.</div>
               ) : null}
             </>

@@ -197,7 +197,7 @@
 | **`findings_summary`** | `object` | **발견 항목 상태별 건수.** `{unresolved, regressed, resolved, unaffected, no_retry, total}`. **5개 상태의 합 = `total` = 공격 수**(화면이 검산할 수 있어야 한다). `unresolved`=지시문 처방으로 못 막은 건수 → 처방②(입력단 탐지기)의 근거. `regressed`=처방 후 새로 뚫린 건수(실측으로 존재한다 — 0으로 가정하지 말 것) |
 | `filter_recommendation` | `object` | R2 확정 유출의 사후 검사 집계. 기존 `residual`, `rule_blockable`, `flags`, `note`, `basis` 유지. `status`: `completed` / `no_targets` / `unavailable` / `failed` / `not_recorded`. `checked`, `unchecked`: ML 배치 완료·미완료 수. `ml_additional`: 규칙 미탐지 중 ML 추가 탐지 수, `detected_total`: 중복 없는 합계, `undetected`: 둘 다 미탐지 수. ML 미완료 시 세 수치는 null. `model`, `threshold`, `coverage`: 최소 측정 근거. 원문·경로·내부 오류는 제외. |
 
-사후 검사는 공유 JOKER-KO 인스턴스로 진단 워커에서 한 배치 실행하고 마스킹 전에 계산한다. 집계는 `tb_diagnosis.filter_recommendation`의 nullable JSON TEXT에 저장하며 조회 시 재추론하지 않는다. 과거 NULL 기록은 규칙만 조회 집계하고 `not_recorded`로 구분한다. ML 성공 시 `basis="rules_and_ml"`, 나머지는 `rule_layer_only`다. 배치 실패는 부분 ML 수치를 공개하지 않으며 기존 ASR·등급에 영향을 주지 않는다. 실제 추가 검사 중에만 진행 키 `detector`를 보내며, 기존 진행 키와 대상 모델 호출 수는 유지한다.
+사후 검사는 공유 JOKER-KO 인스턴스로 진단 워커에서 한 배치 실행하고 마스킹 전에 계산한다. 집계는 `tb_diagnosis.filter_recommendation`의 nullable JSON TEXT에 저장하며 조회 시 재추론하지 않는다. 과거 NULL 기록은 규칙만 조회 집계하고 `not_recorded`로 구분한다. ML 성공 시 `basis="rules_and_ml"`, 나머지는 `rule_layer_only`다. 배치 실패는 부분 ML 수치를 공개하지 않으며 기존 ASR·등급에 영향을 주지 않는다. ★ 검사 대상(R2 유출 공격문)은 JOKER-KO 학습 데이터와 같은 공격 시드에서 만들어진다(57개 중 47개가 학습·검증) — `ml_additional`·`detected_total` 은 in-distribution 값이라 **탐지 성능으로 인용하지 않는다.** 화면은 ML 추가 탐지가 1건 이상일 때 이 단서와 OOD 검증 수치(headline_metrics `ood_recall`·`fpr`)를 함께 표시한다. 실제 추가 검사 중에만 진행 키 `detector`를 보내며, 기존 진행 키와 대상 모델 호출 수는 유지한다.
 
 | `patched_prompt` | `string` | 처방된 지시문 전문. **복사 버튼** 필수 |
 | `attempts[]` | 배열 | 시도별 상세(아래) |

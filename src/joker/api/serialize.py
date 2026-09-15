@@ -352,7 +352,8 @@ def progress_payload(progress: dict | None) -> dict:
         "stage": stage,
         # 아직 워커가 집어가지 않은 진단(앞 진단이 실행 중)은 '대기 중' 이라고 말한다.
         "queued": bool(p.get("queued", True)),
-        "stage_index": 4 if stage == "detector" else _STAGE_INDEX.get(stage, 0),
+        # 단계 목록이 바뀌어도 어긋나지 않게, 실제로 내보내는 stages 에서 위치를 찾는다.
+        "stage_index": next((i for i, s in enumerate(stages) if s["key"] == stage), 0),
         "stages": stages,
         "stage_done": p.get("stage_done"),      # 현재 단계에서 실행한 공격 수(정확)
         "stage_total": p.get("stage_total"),    # 현재 배치의 공격 수(정확)

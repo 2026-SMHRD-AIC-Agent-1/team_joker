@@ -101,6 +101,18 @@ export function DetectorCta({ rep }: { rep: Report }) {
 }
 
 /** 저장된 수치만 표시한다. 미실행은 0건으로 대체하지 않는다. */
+/** 사후 검사 수치를 탐지 성능으로 읽지 않게 하는 단서 + 처음 보는 공격 기준의 검증 수치. */
+function TrainingOverlapNotice() {
+  const ood = metric("ood_recall");
+  const fpr = metric("fpr");
+  return <div className="notice" data-testid="training-overlap" role="note">
+    <b>이 수치는 탐지 성능 지표가 아닙니다.</b>{" "}
+    검사한 공격문은 JOKER-KO 학습에 쓰인 공격 시드에서 만들어져, 모델이 이미 본 문장이 섞여 있습니다.
+    {ood ? <> 처음 보는 공격에 대한 성능은 {ood.condition} 기준 <b>{ood.value}</b>({ood.detail})
+      {fpr ? <>, 정상 문장 오탐 <b>{fpr.value}</b></> : null}입니다.</> : null}
+  </div>;
+}
+
 export function FilterLayerDetail({ rep }: { rep: Report }) {
   const fr = rep.filter_recommendation;
   const complete = fr?.status === "completed";
@@ -116,10 +128,14 @@ export function FilterLayerDetail({ rep }: { rep: Report }) {
     {fr ? <StatRow items={[
       { label: "보강 후 남은 유출", value: `${fr.residual}건`, sub: "R2 확정 유출" },
       { label: "규칙으로 탐지", value: `${fr.rule_blockable}건`, sub: "난독화 규칙" },
-      { label: "JOKER-KO가 추가 탐지", value: complete ? count(fr.ml_additional) : "미검사", sub: "규칙 탐지와 중복 제외" },
+      { label: "JOKER-KO가 추가 탐지", value: complete ? count(fr.ml_additional) : "미검사", sub: "규칙과 중복 제외 · 학습 공격 포함" },
       { label: "둘 다 탐지하지 못함", value: complete ? count(fr.undetected) : "미검사", sub: "검사 완료 항목 기준" },
     ]} /> : null}
     {complete ? <p>{fr.note}</p> : null}
+    {/* ★ 순환 평가 단서. 검사 대상은 진단 공격 시드로 만든 문장이고, JOKER-KO 학습 데이터도 같은 시드에서
+        만들었다(detector/build_dataset.py — 57개 중 47개가 학습·검증). 그래서 위 탐지 수는 모델이 이미 본
+        문장에 대한 값이라 성능으로 읽히면 과장이 된다. 처음 보는 공격 기준 수치는 headline_metrics 에서만 가져온다. */}
+    {complete && (fr.ml_additional ?? 0) > 0 ? <TrainingOverlapNotice /> : null}
     {fr && !legacy && !noTargets ? <p className="fine">ML 검사 완료 {fr.checked ?? 0}건 · 미검사 {fr.unchecked ?? fr.residual}건 · 모델 {fr.model} · 임계값 {fr.threshold ?? "확인 불가"}</p> : null}
     {fr && Object.keys(fr.flags ?? {}).length ? <p>규칙 탐지 근거: {Object.entries(fr.flags).map(([k, v]) => <span className="pill" key={k}>{FLAG_KO[k] ?? k} · {v}건</span>)}</p> : null}
     <p className="fine">이번 진단 공격문을 사후 검사한 결과입니다. 운영 서비스에 필터가 적용된 상태는 아닙니다. 기존 ASR·등급과 별개이며 일반적인 정확도나 운영 방어율을 뜻하지 않습니다.</p>
