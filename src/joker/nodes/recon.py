@@ -80,7 +80,13 @@ _KO_STOP = {"번호", "코드", "정보", "이름", "비밀", "비밀번호", "�
 _JOSA = re.compile(r"(?:은|는|이|가|을|를|의|로|으로)$")
 
 
-def _rule_extract_secrets(text: str) -> list[Asset]:
+def rule_extract_secrets(text: str) -> list[Asset]:
+    """지시문 텍스트에서 비밀값 리터럴을 규칙으로 긁는다.
+
+    ★ 공개 함수다(2026-09-15). RECON 폴백 말고 mock victim 도 이 함수를 쓴다 —
+      "지시문에 실제로 적힌 값" 의 정의가 두 벌이 되면 mock 리포트가 다시 어긋난다
+      (providers/mock.py: 차단 배지 옆에 코드값이 찍히던 문제).
+    """
     seen: set[str] = set()
     found: list[Asset] = []
     for pat in _SECRET_RES:
@@ -222,7 +228,7 @@ def recon(state: RunState, deps: Deps) -> RunState:
 
     # 폴백: LLM 이 값을 못 뽑았으면 지시문에서 규칙으로 직접 추출(3b JSON 깨짐 대비)
     if not secrets:
-        fallback = _rule_extract_secrets(target)
+        fallback = rule_extract_secrets(target)
         if fallback:
             assets = assets + fallback
             secrets = fallback

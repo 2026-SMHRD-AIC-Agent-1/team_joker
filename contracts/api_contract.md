@@ -1,4 +1,4 @@
-# Chat Shield — API 응답 계약 v0.7
+# Chat Shield — API 응답 계약 v0.9
 
 > **이 문서가 화면의 진실이다.** 채효석은 이 응답 필드만 보고 Figma 를 그리면 된다.
 > FastAPI *구현*은 다음 주지만, 이 계약이 고정본이다. 필드가 바뀌면 여기부터 고친다.
@@ -8,6 +8,7 @@
 
 | 버전 | 날짜 | 바뀐 것 |
 |---|---|---|
+| **v0.9** | **2026-09-15** | **되돌릴 수 있게 한다 — 진단 중단 · 계정 관리(엔드포인트 11→14).** ①`POST /api/runs/{run_id}/cancel` 신규 — 진행 중인 진단 중단(소유자만). 스레드를 죽이지 않고 플래그만 세워 엔진이 다음 확인 지점(공격 1건 경계)에서 빠져나온다. **취소된 진단은 아무것도 저장하지 않는다** → 비회원 무료 1회도 소모되지 않는다. ②`GET /api/runs/{id}` 에 `status="cancelled"` 추가 — `error` 와 **다른 상태**다(사용자가 누른 정지와 도구의 고장은 다른 사건이고, `report` 는 항상 `null`). ③`POST /api/auth/password` — 비밀번호 변경. **현재 비밀번호를 다시 요구**하고(토큰 탈취자가 주인을 잠그는 것 방지), 성공하면 지금 쓰는 세션만 남기고 나머지를 모두 끊는다. ④`DELETE /api/me` — 회원 탈퇴. 비밀번호 확인 후 계정과 **그 계정의 진단 기록 전부**를 한 트랜잭션에서 삭제한다(개인정보보호법 §16 최소수집을 근거로 드는 서비스가 §21 파기 경로를 안 주면 앞뒤가 안 맞는다). |
 | **v0.7** | **2026-09-10** | **무료 체험 1회를 서버가 센다 + 비회원 자원의 IDOR 을 막는다.** ①`POST /api/guest/session` 신규 — 서명된 게스트 토큰 발급, 잔여 체험 횟수·제한 단위 문구 반환. ②`POST /api/diagnose` 는 비회원 경로에서 `X-Guest-Token` 을 요구한다(`401 guest_session_required`), 진행 중 중복 실행은 `409 guest_run_in_progress`, 소진은 `429 guest_quota_exhausted`. ③**소유자 규칙 확장** — 비회원 진단도 `guest_id` 가 일치해야 열리고 claim 된다(예전에는 `user_id IS NULL` 이면 **누구나** 열렸다). ④`report.original_prompt`(회원 전용, 마스킹 통과) — 원본↔처방문 변경 비교용. ⑤`report.action_required` = 미해결 + 처방 후 신규. ⑥`GET /api/runs` 각 행에 상태 5종 전부 + `action_required` + `asr_delta` + `comparable`. |
 | **v0.6** | **2026-09-09** | **진행 상황 · 목록 건수 2건 추가(지어낸 값 없음).** ①`GET /api/runs/{id}`(status=running)에 `progress` — 현재 단계(pipeline.py 의 실제 함수 순서 5단계), 이번 배치의 `stage_done`/`stage_total`(정확한 실행 수), 누적 `calls_done`. **퍼센트는 내려보내지 않는다** — 적응형 샘플링이라 총 공격 수는 실행 중에만 확정된다. ②`GET /api/runs` 각 행에 `unresolved`·`findings_total`. |
 | **v0.5** | **2026-09-09** | **발견 항목(Finding) 3필드 추가.** ①`report.findings_summary` — `attack_id` 별 r1/r2 를 접은 **상태별 건수**(unresolved/regressed/resolved/unaffected/no_retry/total). 새 등급을 지어낸 게 아니라 `round_no`×`verdict` 파생값이다. ②`attempts[].goal` ③`attempts[].rendered_text` — 실제로 던진 공격 문구(마스킹 통과, **회원 전용** — 비회원은 attempts 자체가 `[]`). **게이팅 경계 이동**: `findings_summary` 는 '위험 사실' 이라 비회원에게도 공개한다. |
@@ -16,7 +17,7 @@
 | **v0.3** | **2026-08-27** | **`is_approximation`(bool) → `fidelity`(단계) 교체.** 불리언은 "근사냐 아니냐" 로 읽혀서, BYOK 로 false 가 되는 순간 **"이제 진짜 내 챗봇을 잰 것"** 으로 오독됐다. 사실이 아니다 — 모델만 같아졌을 뿐 배포 서비스는 여전히 재현되지 않는다. `scope_notice` 를 **항상** 실어 그 사실을 못 놓치게 했다. |
 | v0.2 | 2026-08-27 | **진단 대상 모델 선택(`target`) 추가.** 고객사마다 쓰는 모델이 다르므로 "무슨 모델을 진단했는가"가 제품 요건이 됐다. ①요청에 `target` ②응답에 `target` + **`is_approximation`** ③프리셋 목록 엔드포인트 `GET /api/models` ④BYOK(고객 키) 취급 규칙 |
 
-## 엔드포인트 11개 (v0.3 의 5개 + 탐지 1개 + 회원 5개)
+## 엔드포인트 14개 (v0.3 의 5개 + 탐지 1개 + 회원 5개 + 게스트 1개 + v0.9 의 3개)
 
 | # | 메서드 · 경로 | 하는 일 | 화면 |
 |---|---|---|---|
@@ -31,6 +32,9 @@
 | **9** | **`POST /api/auth/logout` · `GET /api/me`** | **로그아웃 · 현재 회원** | **헤더** |
 | **10** | **`DELETE /api/runs/{run_id}`** | **진단 결과 삭제(본인 것만)** | **결과·이력 화면** |
 | **11** | **`POST /api/runs/{run_id}/claim`** | **주인 없는(비회원) 진단을 내 것으로 귀속** | **가입 직후 자동 호출** |
+| **12** | **`POST /api/runs/{run_id}/cancel`** | **진행 중인 진단 중단(본인 것만). 결과는 저장하지 않는다** | **진행 화면** |
+| **13** | **`POST /api/auth/password`** | **비밀번호 변경(현재 비밀번호 확인 + 다른 세션 해제)** | **설정 화면** |
+| **14** | **`DELETE /api/me`** | **회원 탈퇴 — 계정 + 그 계정의 진단 기록 전부 삭제** | **설정 화면** |
 
 ---
 
@@ -191,7 +195,10 @@
 | `by_technique[]` | 배열 | 기법별 막대그래프. `{technique, ko, before, after, total}` |
 | `applied_patterns[]` | `string[]` | 적용된 방어 패턴 ID(P01..). 툴팁에 이름·근거 |
 | **`findings_summary`** | `object` | **발견 항목 상태별 건수.** `{unresolved, regressed, resolved, unaffected, no_retry, total}`. **5개 상태의 합 = `total` = 공격 수**(화면이 검산할 수 있어야 한다). `unresolved`=지시문 처방으로 못 막은 건수 → 처방②(입력단 탐지기)의 근거. `regressed`=처방 후 새로 뚫린 건수(실측으로 존재한다 — 0으로 가정하지 말 것) |
-| `filter_recommendation` | `object` | 처방 ②(입력단 JOKER-KO 배치) 권고. `{residual, rule_blockable, flags{사유:건수}, note, basis}`. **규칙 층만으로 계산한 하한값**(`basis="rule_layer_only"`) — ML 층은 더 잡는다. 공격문 원문은 담지 않는다(건수·사유만) |
+| `filter_recommendation` | `object` | R2 확정 유출의 사후 검사 집계. 기존 `residual`, `rule_blockable`, `flags`, `note`, `basis` 유지. `status`: `completed` / `no_targets` / `unavailable` / `failed` / `not_recorded`. `checked`, `unchecked`: ML 배치 완료·미완료 수. `ml_additional`: 규칙 미탐지 중 ML 추가 탐지 수, `detected_total`: 중복 없는 합계, `undetected`: 둘 다 미탐지 수. ML 미완료 시 세 수치는 null. `model`, `threshold`, `coverage`: 최소 측정 근거. 원문·경로·내부 오류는 제외. |
+
+사후 검사는 공유 JOKER-KO 인스턴스로 진단 워커에서 한 배치 실행하고 마스킹 전에 계산한다. 집계는 `tb_diagnosis.filter_recommendation`의 nullable JSON TEXT에 저장하며 조회 시 재추론하지 않는다. 과거 NULL 기록은 규칙만 조회 집계하고 `not_recorded`로 구분한다. ML 성공 시 `basis="rules_and_ml"`, 나머지는 `rule_layer_only`다. 배치 실패는 부분 ML 수치를 공개하지 않으며 기존 ASR·등급에 영향을 주지 않는다. 실제 추가 검사 중에만 진행 키 `detector`를 보내며, 기존 진행 키와 대상 모델 호출 수는 유지한다.
+
 | `patched_prompt` | `string` | 처방된 지시문 전문. **복사 버튼** 필수 |
 | `attempts[]` | 배열 | 시도별 상세(아래) |
 
@@ -335,6 +342,50 @@
 | 401 | `auth_required` | 비회원 |
 | 404 | `not_found` | 없거나 **남의 것** |
 
+### POST /api/auth/password (v0.9) — 비밀번호 변경
+요청 `{"current_password", "new_password"}` · `Authorization: Bearer` 필요.
+
+| 상태 | 코드 | 언제 |
+|---|---|---|
+| 200 | — | `{"changed": true}`. **지금 쓰는 세션만 남고 나머지 세션은 전부 끊긴다** |
+| 400 | `weak_password` | 새 비밀번호가 규칙(영문+숫자 8자 이상)에 안 맞음 |
+| 400 | `same_password` | 지금과 같은 비밀번호 |
+| 401 | `invalid_credentials` | **현재 비밀번호**가 틀림 |
+| 401 | `auth_required` | 비회원 |
+
+★ 왜 현재 비밀번호를 또 받나: 세션 토큰만으로 바꿀 수 있으면 토큰을 탈취한 사람이 주인을
+자기 계정에서 잠가버릴 수 있다(계정 탈취의 마지막 단계).
+★ 왜 지금 세션은 남기나: 바꾸자마자 로그아웃되면 사용자는 바뀐 건지 실패한 건지 알 수 없고,
+화면은 '성공' 을 띄운 채 401 을 받는다.
+
+### DELETE /api/me (v0.9) — 회원 탈퇴
+요청 `{"password"}` · `Authorization: Bearer` 필요.
+
+| 상태 | 코드 | 언제 |
+|---|---|---|
+| 204 | — | 계정 + **그 계정의 진단 기록 전부** 삭제(한 트랜잭션). 세션도 CASCADE 로 사라진다 |
+| 401 | `invalid_credentials` | 비밀번호 틀림 |
+| 401 | `auth_required` | 비회원 |
+
+★ 되돌릴 수 없고 백업본을 남기지 않는다 — 진단 기록에는 고객사 시스템 지시문이 들어 있어,
+'지웠다' 고 말하고 남겨두면 그게 더 큰 사고다.
+★ `tb_diagnosis.user_id` 는 ALTER 로 붙은 열이라 FK 가 없다 → `tb_user` 삭제만으로는 진단이
+안 지워진다. 그래서 store 층에서 두 DELETE 를 한 트랜잭션으로 묶는다.
+
+### POST /api/runs/{run_id}/cancel (v0.9) — 진행 중인 진단 중단
+| 상태 | 코드 | 언제 |
+|---|---|---|
+| 204 | — | 중단 요청 접수(이미 요청한 진단에 또 해도 204 — 중복 클릭이 오류로 보이면 안 된다) |
+| 409 | `not_running` | 이미 끝났거나(done/error) 이미 중단된 진단 |
+| 404 | `not_found` | 없거나 **남의 것**(존재 여부도 흘리지 않는다 — IDOR) |
+
+★ 스레드를 강제로 죽이지 않는다. 플래그만 세우고 엔진이 다음 확인 지점 — **공격 1건을 던지기
+전** — 에서 스스로 빠져나온다. 밖에서 죽이면 DB 연결과 파일이 중간 상태로 남는다.
+★ **아무것도 저장하지 않는다.** 던지다 만 진단의 ASR 은 57건 기준 수치와 나란히 놓을 수 없다.
+그래서 `GET` 응답의 `report` 는 항상 `null` 이고, `GET /api/runs` 목록에도 나타나지 않는다.
+★ `status="cancelled"` 는 `error` 와 **다른 상태**다. 사용자가 누른 정지를 '진단 중 오류가
+발생했습니다' 로 보여주면, 자기가 누른 버튼 때문인지 도구가 고장 난 것인지 구분할 수 없다.
+
 ---
 
 ## ★ 소유자 규칙 (IDOR 차단 · v0.4 핵심)
@@ -468,6 +519,7 @@ salt 는 `JOKER_GUEST_SALT` 에서 온다(없으면 프로세스 수명 동안�
 | `done` | **O** | 사용자가 결과를 받았다 |
 | `inconclusive`(보호할 값 없음) | X | 얻은 것이 없는데 차감하면 지시문 하나로 체험이 끝난다 |
 | `error`(서버·모델 오류) | X | 워커가 저장 전에 끝나 DB 에 행이 없다 → 자동으로 재시도 허용 |
+| `cancelled`(사용자가 중단, v0.9) | X | 같은 이유 — 저장된 결과가 없다. 받은 것이 없는데 차감하지 않는다 |
 | 진행 중 | 잔여에서 차감(예약) | 새로고침·중복 클릭으로 몇 건이든 시작되는 것을 막는다 |
 
 ---

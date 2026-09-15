@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 from joker.corpus.render import render_attack
-from joker.deps import Deps
+from joker.deps import Deps, DiagnosisCancelled
 from joker.models import Asset, AssetKind, Attack, Attempt
 from joker.state import RunState
 
@@ -40,6 +40,11 @@ def run_attacks(
     out: list[Attempt] = []
     total = len(attacks)
     for i, atk in enumerate(attacks, 1):
+        # ★ 취소 확인은 '모델을 부르기 전' 이다. 여기가 진단 시간의 거의 전부라(공격 1건 =
+        #   victim 1콜), 이 지점에서 물어봐야 사용자가 누른 정지가 몇 초 안에 실제로 멈춘다.
+        ask = getattr(deps, "should_cancel", None)
+        if ask is not None and ask():
+            raise DiagnosisCancelled()
         # 진행 통지는 '센 값' 만 보낸다 — i/total 은 이 배치에서 정확하다(추정 아님).
         cb = getattr(deps, "on_progress", None)
         if cb is not None:

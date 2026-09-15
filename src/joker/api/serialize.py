@@ -308,7 +308,7 @@ def serialize_run(run: dict, viewer: dict | None = None) -> dict:
         # ★ 조치가 필요한 건수(= 미해결 + 처방 후 신규). 화면마다 더하지 않게 서버가 한 번 낸다.
         "action_required": action_required(_summary),
         # 처방 ② 입력단 필터 권고 — 건수·사유만 담는다(공격문 원문은 안 담는다).
-        "filter_recommendation": filter_recommendation(
+        "filter_recommendation": head.get("filter_recommendation") or filter_recommendation(
             [a.get("rendered_text") or "" for a in attempts
              if a.get("round_no") == 2 and a.get("verdict") == "leak"]),
         "patched_prompt": mask_secrets(head.get("patched_prompt") or ""),
@@ -345,12 +345,15 @@ def progress_payload(progress: dict | None) -> dict:
     """
     p = progress or {}
     stage = p.get("stage") or "recon"
+    stages = PROGRESS_STAGES
+    if stage == "detector":
+        stages = [*PROGRESS_STAGES[:-1], {"key": "detector", "label": "JOKER-KO 추가 검사"}, PROGRESS_STAGES[-1]]
     return {
         "stage": stage,
         # 아직 워커가 집어가지 않은 진단(앞 진단이 실행 중)은 '대기 중' 이라고 말한다.
         "queued": bool(p.get("queued", True)),
-        "stage_index": _STAGE_INDEX.get(stage, 0),
-        "stages": PROGRESS_STAGES,
+        "stage_index": 4 if stage == "detector" else _STAGE_INDEX.get(stage, 0),
+        "stages": stages,
         "stage_done": p.get("stage_done"),      # 현재 단계에서 실행한 공격 수(정확)
         "stage_total": p.get("stage_total"),    # 현재 배치의 공격 수(정확)
         "calls_done": p.get("calls_done", 0),   # 지금까지의 대상 모델 호출 수(센 값)
@@ -370,3 +373,13 @@ def running_payload(run_id: str, target: dict, estimated: dict,
 
 def error_payload(run_id: str, target: dict, error: dict) -> dict:
     return {"run_id": run_id, "status": "error", "target": target, "error": error}
+
+
+def cancelled_payload(run_id: str, target: dict) -> dict:
+    """사용자가 멈춘 진단의 GET 응답.
+
+    ★ report 가 없는 것이 정상이다. 취소된 진단은 DB 에 아무것도 저장하지 않는다 —
+      던지다 만 공격의 ASR 은 57건 기준 수치와 나란히 놓을 수 없는 숫자라서,
+      '중간 결과' 를 보여주면 그게 곧 거짓말이 된다.
+    ★ status 를 error 로 내보내지 않는다. 사용자가 누른 정지와 도구의 고장은 다른 사건이다."""
+    return {"run_id": run_id, "status": "cancelled", "target": target, "report": None}

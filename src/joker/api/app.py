@@ -48,7 +48,7 @@ def create_app():
     repo.init_schema()
 
     from joker.detect_ko import KoDetector
-    detector = KoDetector()  # 모델은 첫 /api/detect 호출에서 lazy 로드(엔진 시작은 안 무겁게)
+    detector = KoDetector()  # 단건 검사와 진단 워커가 공유한다. 첫 추론에서만 모델을 로드한다.
 
     # 코퍼스는 시작 시 1회 로드해 health 의 corpus_loaded 로 쓴다(진단마다 다시 읽는 건 prepare 담당).
     try:
@@ -169,6 +169,30 @@ def create_app():
             return _error(401, "auth_required", "로그인이 필요합니다.")
         return viewer
 
+    @app.post("/api/auth/password")
+    async def change_password(req: Request):
+        """비밀번호 변경. 현재 비밀번호를 다시 확인한다(세션 탈취 상태에서 잠가버리는 것 방지)."""
+        body, err = await _json_body(req)
+        if err is not None:
+            return err
+        return _auth_result(auth_service.change_password(
+            req.headers.get("authorization"), body))
+
+    @app.delete("/api/me")
+    async def delete_account(req: Request):
+        """회원 탈퇴 — 계정과 이 계정의 진단 기록을 영구 삭제한다.
+
+        ★ 왜 있어야 하나: 우리는 가입할 때 이메일 하나만 받으면서 '최소수집'(개인정보보호법
+          §16)을 근거로 든다. 수집을 최소로 한다면서 지울 방법이 없으면 앞뒤가 안 맞는다
+          (§21 파기). 진단 기록에는 고객사 시스템 지시문이 들어 있어 더욱 그렇다.
+        ★ 비밀번호를 다시 받는다. 자리를 비운 사이 남이 누르는 것을 막는다.
+        """
+        body, err = await _json_body(req)
+        if err is not None:
+            return err
+        return _auth_result(auth_service.delete_account(
+            req.headers.get("authorization"), body))
+
     # ── 비회원 방문자 세션 ──────────────────────────────────
     @app.post("/api/guest/session")
     def guest_session(request: Request):
@@ -256,7 +280,8 @@ def create_app():
         prep["run_id"] = reservation
         job.target, job.estimated = prep["target"], prep["estimated"]
         registry.submit(prep["run_id"], service.make_worker(prep, repo,
-                                                           on_progress=job.note_progress))
+                                                           on_progress=job.note_progress,
+                                                           should_cancel=job.cancelled, detector=detector))
         est = prep["estimated"]
         # 202: 시작만 알린다. target 은 model+backend 만(전체는 GET 에서). estimated_calls 는 BYOK 요금 고지.
         return JSONResponse(status_code=202, content={
@@ -278,6 +303,12 @@ def create_app():
             if not _may_view(job.user_id, viewer, job.guest_id, req_guest):
                 return _not_found(run_id)
             return serialize.error_payload(run_id, job.target, job.error)
+        if job and job.status == "cancelled":
+            # ★ DB 에는 아무것도 없다(취소는 저장하지 않는다). 여기서 답하지 않으면
+            #   방금 자기가 멈춘 진단이 404 '없는 진단' 으로 보인다.
+            if not _may_view(job.user_id, viewer, job.guest_id, req_guest):
+                return _not_found(run_id)
+            return serialize.cancelled_payload(run_id, job.target)
         # 완료본은 DB 가 진실(레지스트리에 없어도 재시작 후 이력으로 조회된다)
         try:
             run = repo.load_run(run_id)
@@ -343,6 +374,26 @@ def create_app():
             return _not_found(run_id)
         return Response(status_code=204)
 
+    @app.post("/api/runs/{run_id}/cancel")
+    def cancel_run(run_id: str, request: Request):
+        """진행 중인 진단 중단. 소유자만(진행 중 소유권은 레지스트리의 잡이 들고 있다).
+
+        ★ 스레드를 강제로 죽이지 않는다 — 플래그만 세우고 엔진이 다음 확인 지점(공격 1건 경계)
+          에서 스스로 빠져나온다. 밖에서 죽이면 DB 연결과 파일이 중간 상태로 남는다.
+        ★ 취소된 진단은 아무것도 저장하지 않는다. 그래서 비회원의 무료 1회도 소모되지 않는다
+          (무료 횟수는 저장된 진단 수로 센다).
+        """
+        job = registry.get(run_id)
+        if job is None:
+            return _not_found(run_id)
+        viewer = _viewer(request)
+        if not _may_view(job.user_id, viewer, job.guest_id, _guest_id(request)):
+            return _not_found(run_id)   # 남의 진단도 '없음' 으로 답한다(IDOR)
+        if not registry.request_cancel(run_id):
+            # 이미 끝났거나(done/error) 이미 취소된 진단. 되돌릴 것이 없다.
+            return _error(409, "not_running", "이미 끝난 진단은 취소할 수 없습니다.")
+        return Response(status_code=204)
+
     @app.delete("/api/runs/{run_id}")
     def delete_run(run_id: str, request: Request):
         """진단 결과 삭제(개인정보 자기결정권). 본인 소유만."""
@@ -379,7 +430,13 @@ def create_app():
         except ValueError as e:
             return _error(400, "text_required", str(e))
         except DetectorUnavailable as e:
-            return _error(503, "detector_unavailable", str(e))
+            import logging
+            logging.getLogger(__name__).warning("JOKER-KO unavailable: %s", type(e).__name__)
+            return _error(503, "detector_unavailable", "탐지 모델을 사용할 수 없습니다. 서버의 모델 설정을 확인해 주세요.")
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning("JOKER-KO inference failed: %s", type(e).__name__)
+            return _error(503, "detector_failed", "입력문 검사를 완료하지 못했습니다. 잠시 후 다시 시도해 주세요.")
 
     @app.get("/api/health")
     def health():

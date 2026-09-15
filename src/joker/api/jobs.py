@@ -15,6 +15,7 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 
+from joker.deps import DiagnosisCancelled
 from joker.safety.logging import get_logger
 
 _log = get_logger("joker.api")
@@ -43,6 +44,11 @@ def classify_error(exc: BaseException) -> dict:
     from joker.providers.budget import BudgetExceeded
     from joker.providers.openai_compat import ProviderError
 
+    if isinstance(exc, DiagnosisCancelled):
+        # 취소는 오류가 아니다. _run 이 먼저 걸러내지만, 다른 경로에서 흘러들어와도
+        # '진단 중 오류가 발생했습니다' 로 뭉개지지 않게 여기서도 못박는다.
+        return {"code": "cancelled", "message": "사용자가 진단을 취소했습니다."}
+
     if isinstance(exc, QueueExpired):
         return {"code": "queue_expired", "message": "진단 대기 시간이 초과되었습니다. 잠시 후 다시 시도하세요."}
 
@@ -68,14 +74,26 @@ class Job:
         self.guest_id = guest_id
         self.target = target          # target 블록 dict
         self.estimated = estimated    # estimate_calls() 결과
-        self.status = "running"       # running | done | error
+        self.status = "running"       # running | done | error | cancelled
         self.error: dict | None = None  # {code, message} — error 일 때만
+        # 취소 요청. ★ Event 를 쓰는 이유: 요청 스레드가 set 하고 워커 스레드가 읽는다.
+        #   bool 속성이면 스레드 간 가시성을 언어가 보장하지 않는다.
+        self._cancel = threading.Event()
         self.created_at = datetime.datetime.now().isoformat(timespec="seconds")
         # 진행 상황. ★ 센 값만 담는다(단계·이번 배치의 실행 수·누적 호출 수). 퍼센트는 만들지 않는다.
         # ★ 워커 풀이 max_workers=1 이라 두 번째 진단은 '대기 중' 이다. 이걸 안 알려주면
         #   화면은 '지시문 분석'에 멈춘 것처럼 보인다(실제로 개발 중에 몇 번 속았다).
         self.started = False
         self.progress: dict = {"stage": "recon", "calls_done": 0, "queued": True}
+
+    def request_cancel(self) -> None:
+        """멈추라고 표시만 한다. 실제로 멈추는 것은 엔진이 다음 확인 지점에 닿았을 때다
+        (스레드를 밖에서 죽이면 DB 연결·파일이 중간 상태로 남는다)."""
+        self._cancel.set()
+
+    def cancelled(self) -> bool:
+        """엔진(deps.should_cancel)이 호출한다."""
+        return self._cancel.is_set()
 
     def note_progress(self, stage: str, stage_done: int | None = None,
                       stage_total: int | None = None, call: bool = False) -> None:
@@ -142,16 +160,36 @@ class JobRegistry:
     def _run(self, run_id: str, work) -> None:
         try:
             job = self.get(run_id)
+            # 대기열에서 차례를 기다리는 동안 취소했을 수 있다. 시작조차 하지 않는다.
+            if job is not None and job.cancelled():
+                raise DiagnosisCancelled()
             if job and time.monotonic() - job.registered_at > self.queue_timeout:
                 raise QueueExpired()
             work()
             self._set(run_id, "done")
             _log.info("diagnose done run_id=%s", run_id)
+        except DiagnosisCancelled:
+            # ★ 아무것도 저장하지 않는다. work() 안에서 예외가 났으므로 repo.save_run 에
+            #   도달하지 못했다 — 중간까지의 반쪽 결과가 '진단 이력' 으로 남지 않는다.
+            self._set(run_id, "cancelled")
+            _log.info("diagnose cancelled run_id=%s", run_id)
         except Exception as e:  # noqa: BLE001 — 워커 스레드 최상단
             err = classify_error(e)
             self._set(run_id, "error", err)
             # ★ 예외 메시지에 base_url·키가 섞일 수 있어 트레이스백 원문은 안 찍는다. 코드만 남긴다.
             _log.error("diagnose failed run_id=%s code=%s", run_id, err["code"])
+
+    def request_cancel(self, run_id: str) -> bool:
+        """진행 중인 진단에 정지를 요청한다. 진행 중이 아니면 False(호출자는 409/404 로 답한다).
+
+        이미 취소를 요청한 진단에 또 요청해도 True 다 — 중복 클릭이 오류로 보이면 안 된다.
+        """
+        with self._lock:
+            job = self._jobs.get(run_id)
+            if job is None or job.status != "running":
+                return False
+            job.request_cancel()
+            return True
 
     def discard(self, run_id: str) -> None:
         with self._lock:
@@ -176,6 +214,8 @@ class JobRegistry:
                      "target_model": j.target.get("model"), "backend": j.target.get("backend"),
                      "fidelity": j.target.get("fidelity"), "grade": None,
                      "asr_before": None, "asr_after": None, "action_required": 0}
+                    # ★ cancelled 는 넣지 않는다 — 저장된 결과가 없어서 열어도 볼 게 없고,
+                    #   목록에 '취소됨' 유령 행이 한 시간 동안 남는다.
                     for j in self._jobs.values() if j.status in ("running", "error") and
                     ((user_id is not None and j.user_id == user_id) or
                      (user_id is None and guest_id is not None and j.user_id is None and j.guest_id == guest_id))]

@@ -49,16 +49,7 @@ def _by_technique(r1: list[Attempt], r2: list[Attempt]) -> dict:
 
 
 def filter_recommendation(leaked_texts: list[str]) -> dict:
-    """처방 ② — 입력단 필터를 붙였을 때 무엇이 더 막히는지.
-
-    왜 REPORT 가 이걸 내나: 진단의 산출물은 '지시문을 이렇게 고쳐라' 하나뿐이었다. 실제 권고는
-    두 개다(지시문 보강 + 입력단 JOKER-KO). 두 번째 권고가 리포트에 없으면 두 층이 한 제품인
-    이유가 화면에 안 남는다.
-
-    ★ 규칙 층(obfuscation_flags)만 쓴다 — 순수 함수라 torch 가 필요 없고, 학습을 하지 않아
-      순환 평가와 무관하다. 그래서 여기 수치는 **하한**이다(ML 층은 더 잡는다).
-    ★ 공격문 원문을 응답에 담지 않는다 — 건수와 사유만 낸다(§5 개인정보 설계).
-    """
+    """잔여 유출의 규칙 집계. 과거 기록 조회에도 사용하며 추론하지 않는다."""
     residual = len(leaked_texts)
     flags: dict[str, int] = {}
     blockable = 0
@@ -68,21 +59,15 @@ def filter_recommendation(leaked_texts: list[str]) -> dict:
             blockable += 1
             for f in fs:
                 flags[f] = flags.get(f, 0) + 1
-    if residual == 0:
-        note = ("보강 후 잔여 유출이 없습니다. 입력단 필터는 새로운 우회 시도에 대한 "
-                "2차 방어로 함께 배치하기를 권고합니다.")
-    elif blockable:
-        note = (f"보강 후 남은 유출 {residual}건 중 {blockable}건은 입력단 필터의 난독화 규칙만으로도 "
-                "차단 가능합니다 — 지시문 보강으로는 막지 못한 계열입니다.")
-    else:
-        note = (f"보강 후 남은 유출 {residual}건은 난독화 규칙으로는 잡히지 않습니다. "
-                "입력단 필터의 ML 층과 함께 검토가 필요합니다.")
+    note = (f"보강 후 남은 유출 {residual}건 중 규칙으로 {blockable}건을 탐지했습니다. "
+            "ML 검사 기록 없음.")
     return {
         "residual": residual,
         "rule_blockable": blockable,
         "flags": dict(sorted(flags.items(), key=lambda kv: (-kv[1], kv[0]))),
         "note": note,
-        "basis": "rule_layer_only",   # ML 미포함 → 하한값임을 응답에 명시
+        "basis": "rule_layer_only",
+        "status": "not_recorded",
     }
 
 
@@ -108,3 +93,51 @@ def build_report(
         filter_recommendation=filter_recommendation(
             [a.rendered_text for a in r2 if a.verdict == Verdict.LEAK]),
     )
+
+
+def inspect_residual(leaked_texts, detector, on_start=None) -> dict:
+    """진단 워커에서 한 배치만 검사한다. 실패 시 ML 집계 전체를 보류한다."""
+    import logging
+    import math
+    from pathlib import Path
+    from joker.detect_ko import DetectorUnavailable, MAX_CHARS
+
+    result = filter_recommendation(leaked_texts)
+    result.update(status="unavailable", checked=0, unchecked=len(leaked_texts),
+                  ml_additional=None, detected_total=None, undetected=None,
+                  model=Path(detector.model_path).name if detector else "JOKER-KO", threshold=detector.threshold if detector else None,
+                  coverage="all_token_windows")
+    if not leaked_texts:
+        result.update(status="no_targets", unchecked=0,
+                      note="보강 후 잔여 유출이 없어 추가 검사 대상이 없습니다.")
+        return result
+    phase = "availability"
+    try:
+        if detector is None or not detector.available():
+            raise DetectorUnavailable("detector unavailable")
+        phase = "input_validation"
+        if any(not isinstance(t, str) or not t.strip() or len(t) > MAX_CHARS for t in leaked_texts):
+            raise ValueError("invalid residual input")
+        phase = "inference"
+        if on_start:
+            on_start()
+        detections = detector.classify_many(leaked_texts)
+        if len(detections) != len(leaked_texts) or any(
+            not math.isfinite(d.score) or not 0 <= d.score <= 1 for d in detections
+        ):
+            raise ValueError("invalid detector scores")
+        additional = sum(not obfuscation_flags(t) and d.score >= d.threshold
+                         for t, d in zip(leaked_texts, detections))
+        total = result["rule_blockable"] + additional
+        result.update(status="completed", basis="rules_and_ml", checked=len(leaked_texts),
+                      unchecked=0, ml_additional=additional, detected_total=total,
+                      undetected=len(leaked_texts) - total,
+                      note=f"이번에 남은 공격 {len(leaked_texts)}건 중 {total}건을 입력단 필터의 차단 대상으로 분류했습니다.")
+    except Exception as exc:
+        result["status"] = "unavailable" if isinstance(exc, DetectorUnavailable) else "failed"
+        # 원문·비밀값이 예외 메시지에 포함될 수 있어 원인 유형과 단계만 기록한다.
+        logging.getLogger(__name__).warning(
+            "JOKER-KO post inspection status=%s phase=%s cause=%s",
+            result["status"], phase, type(exc).__name__)
+        result["note"] = "ML 검사를 완료하지 못했습니다. 규칙 검사 결과만 제공합니다."
+    return result

@@ -45,10 +45,10 @@ class DetectorUnavailable(RuntimeError):
 
 @dataclass(frozen=True)
 class Detection:
-    """한 건 분류 결과. score = INJECTION(공격) 확률."""
+    """한 건 분류 결과. score = INJECTION 분류 점수(보정된 공격 확률 아님)."""
 
     label: str          # "SAFE" | "INJECTION"
-    score: float        # 0.0~1.0, 공격일 확률
+    score: float        # 0.0~1.0, 모델 분류 점수
     threshold: float
     is_injection: bool
     model: str          # 사용한 모델 경로(문자열)

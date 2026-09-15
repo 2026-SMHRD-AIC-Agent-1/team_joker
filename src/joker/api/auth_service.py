@@ -123,6 +123,58 @@ class AuthService:
             self.repo.delete_session(auth.hash_token(token))
         return _ok(204, None)
 
+    # ── 비밀번호 변경 ───────────────────────────────────────
+    def change_password(self, authorization: str | None, body: dict | None) -> dict:
+        """현재 비밀번호 확인 → 새 비밀번호로 교체 → **다른 세션 전부 끊기**.
+
+        ★ 현재 비밀번호를 다시 받는 이유: 세션 토큰만으로 바꿀 수 있으면, 토큰을 탈취한
+          사람이 주인을 자기 계정에서 잠가버릴 수 있다(계정 탈취의 마지막 단계).
+        ★ 지금 쓰는 세션은 남긴다 — 바꾸자마자 로그아웃되면 사용자는 바뀐 건지 실패한 건지
+          알 수 없고, 화면은 '성공' 을 띄운 채 401 을 받는다.
+        """
+        viewer = self.viewer(authorization)
+        if viewer is None:
+            return _err(401, "auth_required", "로그인이 필요합니다.")
+        b = body or {}
+        if any(not isinstance(b.get(k, ""), str) for k in ("current_password", "new_password")):
+            return _err(400, "bad_input", "비밀번호는 문자열이어야 합니다.")
+        current = b.get("current_password") or ""
+        new = b.get("new_password") or ""
+
+        user = self.repo.find_user_by_id(viewer["user_id"])
+        if user is None or not auth.verify_password(current, user["password_hash"]):
+            return _err(401, "invalid_credentials", "현재 비밀번호가 올바르지 않습니다.")
+        problem = auth.validate_password(new)
+        if problem:
+            return _err(400, "weak_password", problem)
+        if auth.verify_password(new, user["password_hash"]):
+            return _err(400, "same_password", "지금과 다른 비밀번호를 입력하세요.")
+
+        self.repo.update_password(viewer["user_id"], auth.hash_password(new))
+        token = auth.bearer_token(authorization)
+        self.repo.delete_sessions_for_user(
+            viewer["user_id"], keep_token_hash=auth.hash_token(token) if token else None)
+        return _ok(200, {"changed": True})
+
+    # ── 회원 탈퇴 ───────────────────────────────────────────
+    def delete_account(self, authorization: str | None, body: dict | None) -> dict:
+        """계정과 이 계정의 진단 기록을 영구 삭제한다. 비밀번호를 다시 확인한다.
+
+        ★ 되돌릴 수 없다. 진단 기록에는 고객사 시스템 지시문이 들어 있어 백업본을 따로
+          남기지 않는다 — '지웠다' 고 말하고 남겨두면 그게 더 큰 사고다.
+        """
+        viewer = self.viewer(authorization)
+        if viewer is None:
+            return _err(401, "auth_required", "로그인이 필요합니다.")
+        b = body or {}
+        if not isinstance(b.get("password", ""), str):
+            return _err(400, "bad_input", "비밀번호는 문자열이어야 합니다.")
+        user = self.repo.find_user_by_id(viewer["user_id"])
+        if user is None or not auth.verify_password(b.get("password") or "", user["password_hash"]):
+            return _err(401, "invalid_credentials", "비밀번호가 올바르지 않습니다.")
+        self.repo.delete_user(viewer["user_id"])
+        return _ok(204, None)
+
     # ── 현재 사용자 ─────────────────────────────────────────
     def viewer(self, authorization: str | None) -> dict | None:
         """Authorization 헤더 → 회원 dict 또는 None(비회원).

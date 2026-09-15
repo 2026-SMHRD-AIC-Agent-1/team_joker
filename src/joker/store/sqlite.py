@@ -98,6 +98,7 @@ class Repository:
             #      진단이면 run_id 만 알면 **아무 방문자나 열고 claim 까지** 할 수 있었다.
             ("guest_id", "TEXT"),
             ("privacy_version", "INTEGER NOT NULL DEFAULT 0"),
+            ("filter_recommendation", "TEXT"),
         ],
         "tb_attempt": [("verdict_reason", "TEXT")],
     }
@@ -137,8 +138,8 @@ class Repository:
                         target_preset, fidelity, is_approximation,
                         target_prompt, target_prompt_hash, persona, org,
                         inconclusive, grade, comparable, asr_before, asr_after, asr_delta,
-                        patched_prompt, user_id, guest_id, privacy_version)
-                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                        patched_prompt, user_id, guest_id, privacy_version, filter_recommendation)
+                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                     (
                         run_id, _now(),
                         state.get("env_profile"), backend, victim_model,
@@ -157,6 +158,7 @@ class Repository:
                         state.get("user_id"),   # 비회원 진단이면 None → NULL
                         state.get("guest_id"),  # 회원 진단이면 None → NULL
                         PRIVACY_VERSION,
+                        json.dumps(report.filter_recommendation, ensure_ascii=False) if report else None,
                     ),
                 )
 
@@ -214,6 +216,7 @@ class Repository:
             con.close()
 
         d = dict(head)
+        d["filter_recommendation"] = json.loads(d["filter_recommendation"]) if d.get("filter_recommendation") else None
         d["attempts"] = attempts
         d["assets"] = assets
         d["applied_patterns"] = patterns

@@ -8,6 +8,10 @@ Repository(sqlite.py)와 같은 규칙:
 
 저장하지 않는 것:
 - 세션 토큰 원문(해시만) · 로그인 실패 이메일 원문(지문만) · 이름/연락처/생년월일(열 자체가 없음).
+
+지우는 것(계약 v0.9 · 2026-09-15):
+- delete_user() 는 계정 + 그 계정의 진단 기록을 한 트랜잭션에서 지운다. 최소수집을 내세우는
+  서비스가 파기 경로를 안 주면 앞뒤가 안 맞는다(개인정보보호법 §16·§21).
 """
 
 from __future__ import annotations
@@ -73,6 +77,38 @@ class AuthRepository:
             con.close()
         return dict(row) if row else None
 
+    def update_password(self, user_id: str, password_hash: str) -> bool:
+        """비밀번호 해시 교체. 바뀐 행이 없으면 False(없는 계정)."""
+        con = self._connect()
+        try:
+            with con:
+                cur = con.execute(
+                    "UPDATE tb_user SET password_hash = ? WHERE user_id = ?",
+                    (password_hash, user_id),
+                )
+            return cur.rowcount > 0
+        finally:
+            con.close()
+
+    def delete_user(self, user_id: str) -> bool:
+        """회원 탈퇴 — 계정과 그 계정의 진단 기록을 **한 트랜잭션에서** 지운다.
+
+        ★ 왜 회원 저장소가 tb_diagnosis 를 건드리나: tb_diagnosis.user_id 는 나중에 ALTER 로
+          붙은 열이라 FK 가 없다 → tb_user 를 지워도 CASCADE 가 진단을 안 지운다. 두 저장소로
+          나눠 호출하면 '계정은 지워졌는데 고객사 시스템 지시문은 그대로 남은' 창이 생긴다.
+          같은 파일·같은 연결이므로 여기서 함께 지우는 것이 원자적이다.
+        ★ 자식 행(attempt/asset/pattern)과 세션은 schema.sql 의 ON DELETE CASCADE 가 지운다
+          (connect() 가 PRAGMA foreign_keys = ON 을 켠다).
+        """
+        con = self._connect()
+        try:
+            with con:
+                con.execute("DELETE FROM tb_diagnosis WHERE user_id = ?", (user_id,))
+                cur = con.execute("DELETE FROM tb_user WHERE user_id = ?", (user_id,))
+            return cur.rowcount > 0
+        finally:
+            con.close()
+
     # ── 세션 ────────────────────────────────────────────────
     def create_session(self, token_hash: str, user_id: str, created_at: str, expires_at: str) -> None:
         con = self._connect()
@@ -100,6 +136,25 @@ class AuthRepository:
         try:
             with con:
                 con.execute("DELETE FROM tb_session WHERE token_hash = ?", (token_hash,))
+        finally:
+            con.close()
+
+    def delete_sessions_for_user(self, user_id: str, keep_token_hash: str | None = None) -> int:
+        """이 회원의 세션을 전부 끊는다. keep_token_hash 하나만 남길 수 있다.
+
+        비밀번호를 바꾸는 이유의 절반은 '누가 내 계정에 들어와 있다' 이다. 바꾸면서 다른
+        기기·탭의 세션을 그대로 두면 바꾼 의미가 없다. 지금 쓰는 세션만 남긴다.
+        """
+        con = self._connect()
+        try:
+            with con:
+                if keep_token_hash:
+                    cur = con.execute(
+                        "DELETE FROM tb_session WHERE user_id = ? AND token_hash != ?",
+                        (user_id, keep_token_hash))
+                else:
+                    cur = con.execute("DELETE FROM tb_session WHERE user_id = ?", (user_id,))
+            return cur.rowcount
         finally:
             con.close()
 

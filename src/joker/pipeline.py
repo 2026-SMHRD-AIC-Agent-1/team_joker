@@ -14,13 +14,13 @@ from __future__ import annotations
 import hashlib
 
 from joker.corpus.sampling import concentration_set, screening_set
-from joker.deps import Deps
+from joker.deps import Deps, DiagnosisCancelled
 from joker.models import Report, Technique, Verdict
 from joker.nodes.attack import build_context, run_attacks
 from joker.nodes.judge import judge_attempts
 from joker.nodes.patch import assemble_patch
 from joker.nodes.recon import recon
-from joker.nodes.report import build_report
+from joker.nodes.report import build_report, inspect_residual
 from joker.state import RunState
 
 
@@ -34,6 +34,18 @@ def emit(deps: Deps | None, stage: str, **kw) -> None:
         cb(stage, **kw)
     except Exception:  # noqa: BLE001
         pass
+
+
+def checkpoint(deps: Deps | None) -> None:
+    """취소 요청을 확인한다. 요청이 있으면 DiagnosisCancelled 로 즉시 빠져나간다.
+
+    ★ emit() 과 달리 예외를 삼키지 않는다 — 콜백이 터졌다고 '취소가 아니다' 로 넘어가면
+      사용자가 누른 정지가 조용히 무시된다. 여기서는 판단이 안 서면 '계속' 이 아니라
+      호출자에게 그대로 알린다.
+    """
+    ask = getattr(deps, "should_cancel", None) if deps else None
+    if ask is not None and ask():
+        raise DiagnosisCancelled()
 
 
 def prompt_hash(text: str) -> str:
@@ -53,6 +65,7 @@ def new_state(target_prompt: str, run_id: str = "run_local") -> RunState:
 # ── 단계 함수 (pipeline / graph 공용) ─────────────────────
 def step_recon(state: RunState, deps: Deps) -> RunState:
     emit(deps, "recon")
+    checkpoint(deps)
     return recon(state, deps)  # recon 은 이미 새 dict 를 반환한다
 
 
@@ -77,6 +90,7 @@ def step_inconclusive(state: RunState, deps: Deps | None = None) -> RunState:
 def step_attack_r1(state: RunState, deps: Deps) -> RunState:
     """R1: 스크리닝 18건 → 취약 기법 판정 → 그 기법에만 집중 투입."""
     emit(deps, "attack_r1")
+    checkpoint(deps)
     context = build_context(state)
     assets = state["assets"]
     attacks = list(deps.attacks)
@@ -117,6 +131,7 @@ def step_attack_r1(state: RunState, deps: Deps) -> RunState:
 
 def step_patch(state: RunState, deps: Deps) -> RunState:
     emit(deps, "patch")
+    checkpoint(deps)
     result = assemble_patch(
         state["target_prompt"], list(state.get("vulnerable_techniques", [])), list(deps.patterns),
         list(state.get("assets", [])),
@@ -130,6 +145,7 @@ def step_patch(state: RunState, deps: Deps) -> RunState:
 def step_attack_r2(state: RunState, deps: Deps) -> RunState:
     """R2: R1 에서 실제로 던진 attack_id 를 그대로 재생(함정①), 처방된 지시문에."""
     emit(deps, "attack_r2")
+    checkpoint(deps)
     context = build_context(state)
     assets = state["assets"]
     by_id = {a.id: a for a in deps.attacks}
@@ -144,12 +160,17 @@ def step_attack_r2(state: RunState, deps: Deps) -> RunState:
 
 
 def step_report(state: RunState, deps: Deps | None = None) -> RunState:
-    emit(deps, "report")
+    checkpoint(deps)
     attempts = state["attempts"]
     r1 = [a for a in attempts if a.round_no == 1]
     r2 = [a for a in attempts if a.round_no == 2]
     report = build_report(r1, r2, state["r1_attack_ids"], list(state.get("applied_patterns", [])))
     new: RunState = dict(state)  # type: ignore[assignment]
+    report.filter_recommendation = inspect_residual(
+        [a.rendered_text for a in r2 if a.verdict == Verdict.LEAK],
+        deps.detector if deps else None, lambda: emit(deps, "detector"))
+    checkpoint(deps)
+    emit(deps, "report")
     new["report"] = report
     if deps is not None:
         # ★ '무엇을 진단했는가'(계약 v0.2). 등급·ASR 이 보이는 모든 자리에 같이 붙어야 한다 —
