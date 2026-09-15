@@ -71,10 +71,10 @@ def test_pipeline_persistence_no_reinference_and_legacy(tmp_path, mock_deps):
                  r1_attack_ids=[a.attack_id for a in r1], applied_patterns=[])
     baseline = build_report(r1, r2, state['r1_attack_ids'], [])
     result = step_report(state, replace(mock_deps, detector=KoDetector(predict_fn=predict),
-                                       on_progress=lambda stage: stages.append(stage)))
+                                       on_progress=lambda stage, **kw: stages.append((stage, kw))))
     report = result['report']
     assert calls == [TEXTS]
-    assert stages == ['detector', 'report']
+    assert stages == [('detector', {'stage_total': len(TEXTS)}), ('report', {'detector_status': 'completed'})]
     assert (report.grade, report.asr_before, report.asr_after, report.delta) == (
         baseline.grade, baseline.asr_before, baseline.asr_after, baseline.delta)
     path = str(tmp_path/'test.db')
@@ -88,8 +88,9 @@ def test_pipeline_persistence_no_reinference_and_legacy(tmp_path, mock_deps):
         con.execute('UPDATE tb_diagnosis SET filter_recommendation = NULL')
     legacy = serialize_run(repo.load_run('saved'))['report']['filter_recommendation']
     assert legacy['status'] == 'not_recorded' and calls == [TEXTS]
-    assert progress_payload({'stage':'detector'})['stages'][4]['key'] == 'detector'
-    assert all(s['key'] != 'detector' for s in progress_payload({'stage':'report'})['stages'])
+    # 단계 목록은 고정이다 — 검사 중이든 아니든 detector 줄이 같은 자리에 있다.
+    assert progress_payload({'stage':'detector'})['stage_index'] == 4
+    assert [s['key'] for s in progress_payload({'stage':'report'})['stages']][4] == 'detector'
 
 @pytest.mark.parametrize('broken', [False, True])
 def test_numeric_asr_unchanged_and_original_inspected_before_masking(tmp_path, mock_deps, broken):

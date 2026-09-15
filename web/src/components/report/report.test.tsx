@@ -81,6 +81,38 @@ describe("진행 표시", () => {
   });
 });
 
+describe("진행 단계 — JOKER-KO 줄 고정 · 판정 구간", () => {
+  const STAGES = ["recon", "attack_r1", "patch", "attack_r2", "detector", "report"].map((key) => ({ key, label: key }));
+  const at = (stage_index: number, extra: object = {}) => ({ stage_index, queued: false, stages: STAGES, calls_done: 114, ...extra });
+
+  it("재진단 중에도 JOKER-KO 줄이 대기로 미리 보인다", () => {
+    const rows = stageRows(at(3, { stage_done: 20, stage_total: 57 }));
+    expect(rows.map((r) => r.key)).toEqual(STAGES.map((s) => s.key));
+    expect(rows[4]).toMatchObject({ label: "JOKER-KO 추가 검사", state: "todo", detail: "대기" });
+  });
+
+  it("공격을 다 던진 뒤에는 '57/57' 대신 판정 중이라고 말한다", () => {
+    const p = at(3, { phase: "judge", stage_total: 57 });
+    expect(stageRows(p)[3].detail).toBe("응답 57건 판정 중");
+    render(<ProgressView progress={p} startedAt={Date.now()} mode="full" />);
+    expect(screen.getByRole("status").textContent).toContain("재진단 응답을 판정하고 있어요");
+    expect(screen.getByTestId("stages").textContent).not.toContain("57/57");
+  });
+
+  it("검사 중이면 남은 유출 건수를 센 값으로 보여 준다", () => {
+    expect(stageRows(at(4, { stage_total: 24 }))[4]).toMatchObject({ state: "cur", detail: "남은 유출 24건 검사 중" });
+  });
+
+  it("검사를 건너뛰면 줄을 숨기지 않고 이유를 쓴다 — '완료' 로 그리지 않는다", () => {
+    expect(stageRows(at(5, { detector_status: "no_targets" }))[4]).toMatchObject({ state: "skip", detail: "건너뜀 · 남은 유출 없음" });
+    expect(stageRows(at(5, { detector_status: "unavailable" }))[4]).toMatchObject({ state: "skip", detail: "건너뜀 · 탐지 모델 없음" });
+    expect(stageRows(at(5, { detector_status: "failed" }))[4].state).toBe("skip");
+    expect(stageRows(at(5, { detector_status: "completed" }))[4]).toMatchObject({ state: "done", detail: "완료" });
+    const { container } = render(<ProgressView progress={at(5, { detector_status: "no_targets" })} startedAt={Date.now()} mode="full" />);
+    expect(container.querySelector(".stg .row.skip .mk")?.textContent).toBe("–");
+  });
+});
+
 it("JOKER-KO 안내는 서버 단계에만 반응하고 경과 시간을 유지한다", () => {
   const { rerender } = render(<ProgressView progress={{stage_index:0, queued:false, stages:[{key:'detector',label:'추가 검사'}]}} startedAt={Date.now()-5000} mode="screening" />);
   expect(screen.getByRole('timer').textContent).toBe('0:05');

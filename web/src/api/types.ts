@@ -173,6 +173,10 @@ export interface Progress {
   stage_total?: number;
   calls_done?: number;
   queued?: boolean;
+  /** 현재 단계 안의 세부 구간. "judge" = 공격을 다 던지고 응답을 판정하는 중. */
+  phase?: "judge" | null;
+  /** JOKER-KO 사후 검사의 결말. 결과 정리 단계부터 온다. */
+  detector_status?: "completed" | "no_targets" | "unavailable" | "failed" | null;
 }
 
 export interface Run {

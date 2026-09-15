@@ -48,6 +48,17 @@ def checkpoint(deps: Deps | None) -> None:
         raise DiagnosisCancelled()
 
 
+def judge_batch(attempts, assets, deps: Deps, stage: str, persona=None, org=None) -> None:
+    """공격 한 묶음을 다 던진 뒤의 판정. 판정 구간에 들어섰다는 사실을 먼저 알린다.
+
+    ★ 판정은 LLM 심판을 건마다 부를 수 있어 공격 실행만큼 오래 걸린다. 알리지 않으면
+      화면은 '이번 묶음 57/57' 에 멈춘 채로 보인다. 건수는 이 묶음의 응답 수(센 값)다.
+    """
+    if attempts:   # 빈 묶음(집중 투입 대상 없음)은 판정할 게 없어 구간을 알리지 않는다
+        emit(deps, stage, phase="judge", stage_total=len(attempts))
+    judge_attempts(attempts, assets, deps, persona, org)
+
+
 def prompt_hash(text: str) -> str:
     return "sha256:" + hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
 
@@ -103,14 +114,14 @@ def step_attack_r1(state: RunState, deps: Deps) -> RunState:
         # 제품 동작은 바꾸지 않는다 — 이 플래그는 재측정용이다(속도 목표는 적응형 기준으로 잰다).
         sweep = sorted(attacks, key=lambda a: (a.technique.value, a.id))
         r1_all = run_attacks(sweep, state["target_prompt"], 1, deps, context)
-        judge_attempts(r1_all, assets, deps, state.get("persona"), state.get("org"))
+        judge_batch(r1_all, assets, deps, "attack_r1", state.get("persona"), state.get("org"))
         vulnerable: list[Technique] = sorted(
             {a.technique for a in r1_all if a.verdict == Verdict.LEAK}, key=lambda t: t.value
         )
     else:
         screen = screening_set(attacks)
         r1 = run_attacks(screen, state["target_prompt"], 1, deps, context)
-        judge_attempts(r1, assets, deps, state.get("persona"), state.get("org"))
+        judge_batch(r1, assets, deps, "attack_r1", state.get("persona"), state.get("org"))
 
         vulnerable = sorted(
             {a.technique for a in r1 if a.verdict == Verdict.LEAK}, key=lambda t: t.value
@@ -119,7 +130,7 @@ def step_attack_r1(state: RunState, deps: Deps) -> RunState:
         seen = {a.attack_id for a in r1}
         concentrate = [a for a in concentration_set(attacks, vulnerable) if a.id not in seen]
         r1c = run_attacks(concentrate, state["target_prompt"], 1, deps, context)
-        judge_attempts(r1c, assets, deps, state.get("persona"), state.get("org"))
+        judge_batch(r1c, assets, deps, "attack_r1", state.get("persona"), state.get("org"))
         r1_all = r1 + r1c
     new: RunState = dict(state)  # type: ignore[assignment]
     new["attempts"] = list(state.get("attempts", [])) + r1_all
@@ -151,7 +162,7 @@ def step_attack_r2(state: RunState, deps: Deps) -> RunState:
     by_id = {a.id: a for a in deps.attacks}
     replay = [by_id[i] for i in state["r1_attack_ids"] if i in by_id]
     r2 = run_attacks(replay, state["patched_prompt"], 2, deps, context)
-    judge_attempts(r2, assets, deps, state.get("persona"), state.get("org"))
+    judge_batch(r2, assets, deps, "attack_r2", state.get("persona"), state.get("org"))
 
     new: RunState = dict(state)  # type: ignore[assignment]
     new["attempts"] = list(state["attempts"]) + r2
@@ -166,11 +177,13 @@ def step_report(state: RunState, deps: Deps | None = None) -> RunState:
     r2 = [a for a in attempts if a.round_no == 2]
     report = build_report(r1, r2, state["r1_attack_ids"], list(state.get("applied_patterns", [])))
     new: RunState = dict(state)  # type: ignore[assignment]
+    residual = [a.rendered_text for a in r2 if a.verdict == Verdict.LEAK]
     report.filter_recommendation = inspect_residual(
-        [a.rendered_text for a in r2 if a.verdict == Verdict.LEAK],
-        deps.detector if deps else None, lambda: emit(deps, "detector"))
+        residual, deps.detector if deps else None,
+        lambda: emit(deps, "detector", stage_total=len(residual)))
     checkpoint(deps)
-    emit(deps, "report")
+    # 검사를 건너뛰었으면(남은 유출 0건 · 모델 없음) 화면이 그 이유를 쓸 수 있게 결말을 같이 알린다.
+    emit(deps, "report", detector_status=report.filter_recommendation.get("status"))
     new["report"] = report
     if deps is not None:
         # ★ '무엇을 진단했는가'(계약 v0.2). 등급·ASR 이 보이는 모든 자리에 같이 붙어야 한다 —

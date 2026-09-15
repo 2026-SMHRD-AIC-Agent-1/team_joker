@@ -383,6 +383,8 @@ details.xp > .xp-body{ padding:4px 22px 24px; }
 .stg .todo .mk{background:var(--surface-3); color:var(--muted2);}
 .stg .done{color:var(--muted);}
 .stg .todo{color:var(--muted2);}
+.stg .skip .mk{background:var(--surface-3); color:var(--muted2);}
+.stg .skip{color:var(--muted2);}
 .stg .cur{color:var(--ink); font-weight:700; background:var(--brand-soft);}
 .stg .d{margin-left:auto; font-size:.79rem; color:var(--muted); font-weight:500;
          font-variant-numeric:tabular-nums;}

@@ -96,7 +96,8 @@ class Job:
         return self._cancel.is_set()
 
     def note_progress(self, stage: str, stage_done: int | None = None,
-                      stage_total: int | None = None, call: bool = False) -> None:
+                      stage_total: int | None = None, call: bool = False,
+                      phase: str | None = None, detector_status: str | None = None) -> None:
         """엔진 콜백. 워커 스레드가 쓰고 요청 스레드가 읽으므로 **통째로 새 dict 로 교체**한다
         (부분 갱신 중간 상태가 응답에 실리는 것을 막는다)."""
         cur = self.progress
@@ -106,6 +107,9 @@ class Job:
             "calls_done": cur.get("calls_done", 0) + (1 if call else 0),
             "stage_done": stage_done,
             "stage_total": stage_total,
+            "phase": phase,
+            # 한 번 정해진 검사 결말은 이후 통지에서도 유지한다(통지마다 dict 를 새로 만들기 때문).
+            "detector_status": detector_status or cur.get("detector_status"),
         }
         self.progress = nxt
 

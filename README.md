@@ -388,7 +388,7 @@ joker gold f1                                            # 판정기 F1 재계�
 
 ```bash
 # Python — 엔진 · API · 보안 · 정직성 문구 가드
-pytest -q --ignore=tests/test_report_density.py
+pytest -q --ignore=tests/test_report_density.py --ignore=tests/test_tool_evidence.py --ignore=tests/test_ui_readability.py
 
 # 웹 — 타입 검사 · 컴포넌트 동작
 cd web
@@ -396,7 +396,7 @@ npx tsc --noEmit
 npx vitest run
 ```
 
-`test_report_density.py`는 보관 중인 이전 Streamlit 화면 전용 테스트라 기본 실행에서 제외합니다.
+제외한 세 파일은 보관 중인 이전 Streamlit 화면 전용 테스트라 `streamlit` 이 설치된 환경에서만 실행됩니다.
 
 주요 검증 항목:
 

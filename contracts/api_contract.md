@@ -119,8 +119,9 @@
   "stage": "attack_r1", "stage_index": 1,
   "stages": [{"key":"recon","label":"지시문 분석 · 보호 자산 식별"}, {"key":"attack_r1","label":"1차 공격 실행"},
              {"key":"patch","label":"방어 문구 보강"}, {"key":"attack_r2","label":"보강 후 재공격"},
-             {"key":"report","label":"등급·리포트 생성"}],
-  "stage_done": 12, "stage_total": 18, "calls_done": 13
+             {"key":"detector","label":"JOKER-KO 추가 검사"}, {"key":"report","label":"등급·리포트 생성"}],
+  "stage_done": 12, "stage_total": 18, "calls_done": 13,
+  "phase": null, "detector_status": null
 }
 ```
 
@@ -129,6 +130,8 @@
 | `stage` / `stage_index` / `stages` | 스테퍼. 지나온 단계 ✓ · 현재 단계 강조 · 남은 단계 흐리게 |
 | `stage_done` / `stage_total` | **이번 배치에서 실제로 던진 공격 수 / 그 배치의 공격 수.** 추정값이 아니다 |
 | `calls_done` | 지금까지의 대상 모델 호출 수(누적). `estimated_calls`(상한)와 나란히 쓴다 |
+| `phase` | `"judge"` = 이 묶음의 공격을 다 던지고 응답을 판정하는 중(이때 `stage_total` 은 판정할 응답 수). 그 밖에는 `null` |
+| `detector_status` | JOKER-KO 사후 검사 결말. `report` 단계부터 온다. `no_targets`·`unavailable`·`failed` 면 스테퍼의 검사 줄에 건너뛴 이유를 쓴다 |
 
 > **왜 %가 없나**: 적응형 샘플링은 1차 스크리닝 결과에 따라 집중 투입 건수가 달라져서
 > **총 공격 수가 실행 도중에 확정된다.** 총량을 추정해 퍼센트를 그리는 순간 화면이 거짓말을 시작하고,
@@ -197,7 +200,7 @@
 | **`findings_summary`** | `object` | **발견 항목 상태별 건수.** `{unresolved, regressed, resolved, unaffected, no_retry, total}`. **5개 상태의 합 = `total` = 공격 수**(화면이 검산할 수 있어야 한다). `unresolved`=지시문 처방으로 못 막은 건수 → 처방②(입력단 탐지기)의 근거. `regressed`=처방 후 새로 뚫린 건수(실측으로 존재한다 — 0으로 가정하지 말 것) |
 | `filter_recommendation` | `object` | R2 확정 유출의 사후 검사 집계. 기존 `residual`, `rule_blockable`, `flags`, `note`, `basis` 유지. `status`: `completed` / `no_targets` / `unavailable` / `failed` / `not_recorded`. `checked`, `unchecked`: ML 배치 완료·미완료 수. `ml_additional`: 규칙 미탐지 중 ML 추가 탐지 수, `detected_total`: 중복 없는 합계, `undetected`: 둘 다 미탐지 수. ML 미완료 시 세 수치는 null. `model`, `threshold`, `coverage`: 최소 측정 근거. 원문·경로·내부 오류는 제외. |
 
-사후 검사는 공유 JOKER-KO 인스턴스로 진단 워커에서 한 배치 실행하고 마스킹 전에 계산한다. 집계는 `tb_diagnosis.filter_recommendation`의 nullable JSON TEXT에 저장하며 조회 시 재추론하지 않는다. 과거 NULL 기록은 규칙만 조회 집계하고 `not_recorded`로 구분한다. ML 성공 시 `basis="rules_and_ml"`, 나머지는 `rule_layer_only`다. 배치 실패는 부분 ML 수치를 공개하지 않으며 기존 ASR·등급에 영향을 주지 않는다. ★ 검사 대상(R2 유출 공격문)은 JOKER-KO 학습 데이터와 같은 공격 시드에서 만들어진다(57개 중 47개가 학습·검증) — `ml_additional`·`detected_total` 은 in-distribution 값이라 **탐지 성능으로 인용하지 않는다.** 화면은 ML 추가 탐지가 1건 이상일 때 이 단서와 OOD 검증 수치(headline_metrics `ood_recall`·`fpr`)를 함께 표시한다. 실제 추가 검사 중에만 진행 키 `detector`를 보내며, 기존 진행 키와 대상 모델 호출 수는 유지한다.
+사후 검사는 공유 JOKER-KO 인스턴스로 진단 워커에서 한 배치 실행하고 마스킹 전에 계산한다. 집계는 `tb_diagnosis.filter_recommendation`의 nullable JSON TEXT에 저장하며 조회 시 재추론하지 않는다. 과거 NULL 기록은 규칙만 조회 집계하고 `not_recorded`로 구분한다. ML 성공 시 `basis="rules_and_ml"`, 나머지는 `rule_layer_only`다. 배치 실패는 부분 ML 수치를 공개하지 않으며 기존 ASR·등급에 영향을 주지 않는다. ★ 검사 대상(R2 유출 공격문)은 JOKER-KO 학습 데이터와 같은 공격 시드에서 만들어진다(57개 중 47개가 학습·검증) — `ml_additional`·`detected_total` 은 in-distribution 값이라 **탐지 성능으로 인용하지 않는다.** 화면은 ML 추가 탐지가 1건 이상일 때 이 단서와 OOD 검증 수치(headline_metrics `ood_recall`·`fpr`)를 함께 표시한다. 진행 단계 목록은 `recon → attack_r1 → patch → attack_r2 → detector → report` **6개로 고정**한다(검사를 건너뛰어도 `detector` 줄은 있다 — 0915, 줄이 생겼다 사라지던 문제 수정). `detector` 단계는 실제 추론이 시작될 때만 현재 단계가 되고 `stage_total` 은 남은 유출 수다. 결과 정리(`report`) 통지부터 `progress.detector_status`(`completed`/`no_targets`/`unavailable`/`failed`)가 실려, 화면은 건너뛴 이유를 적는다. 공격 묶음을 다 던진 뒤 판정하는 동안은 `progress.phase="judge"` 와 `stage_total`=그 묶음의 응답 수가 온다. 대상 모델 호출 수(`calls_done`)는 판정 구간에서 늘지 않는다.
 
 | `patched_prompt` | `string` | 처방된 지시문 전문. **복사 버튼** 필수 |
 | `attempts[]` | 배열 | 시도별 상세(아래) |

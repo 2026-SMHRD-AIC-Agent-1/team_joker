@@ -331,6 +331,10 @@ PROGRESS_STAGES = [
     {"key": "attack_r1", "label": "1차 공격 실행"},
     {"key": "patch", "label": "방어 문구 보강"},
     {"key": "attack_r2", "label": "보강 후 재공격"},
+    # ★ 검사가 실제로 돌지 않아도(남은 유출 0건 · 탐지 모델 없음) 줄은 항상 있다.
+    #   예전에는 검사 중에만 끼웠다 빼서, 화면의 단계 목록이 생겼다 사라지는 버그처럼 보였다.
+    #   건너뛴 경우는 detector_status 로 이유를 함께 내려보낸다.
+    {"key": "detector", "label": "JOKER-KO 추가 검사"},
     {"key": "report", "label": "등급·리포트 생성"},
 ]
 _STAGE_INDEX = {s["key"]: i for i, s in enumerate(PROGRESS_STAGES)}
@@ -345,16 +349,17 @@ def progress_payload(progress: dict | None) -> dict:
     """
     p = progress or {}
     stage = p.get("stage") or "recon"
-    stages = PROGRESS_STAGES
-    if stage == "detector":
-        stages = [*PROGRESS_STAGES[:-1], {"key": "detector", "label": "JOKER-KO 추가 검사"}, PROGRESS_STAGES[-1]]
     return {
         "stage": stage,
         # 아직 워커가 집어가지 않은 진단(앞 진단이 실행 중)은 '대기 중' 이라고 말한다.
         "queued": bool(p.get("queued", True)),
-        # 단계 목록이 바뀌어도 어긋나지 않게, 실제로 내보내는 stages 에서 위치를 찾는다.
-        "stage_index": next((i for i, s in enumerate(stages) if s["key"] == stage), 0),
-        "stages": stages,
+        "stage_index": _STAGE_INDEX.get(stage, 0),
+        "stages": PROGRESS_STAGES,
+        # 현재 단계 안의 세부 구간. "judge" = 공격은 다 던졌고 응답을 판정하는 중.
+        #   이게 없으면 57/57 에서 판정이 끝날 때까지 화면이 멈춘 것처럼 보인다.
+        "phase": p.get("phase"),
+        # JOKER-KO 사후 검사의 결말(completed · no_targets · unavailable · failed). 결과 정리 단계부터 온다.
+        "detector_status": p.get("detector_status"),
         "stage_done": p.get("stage_done"),      # 현재 단계에서 실행한 공격 수(정확)
         "stage_total": p.get("stage_total"),    # 현재 배치의 공격 수(정확)
         "calls_done": p.get("calls_done", 0),   # 지금까지의 대상 모델 호출 수(센 값)

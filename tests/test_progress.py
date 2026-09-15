@@ -25,8 +25,8 @@ from joker.pipeline import run_pipeline
 def _collect(deps):
     events: list[tuple] = []
 
-    def cb(stage, stage_done=None, stage_total=None, call=False):
-        events.append((stage, stage_done, stage_total, call))
+    def cb(stage, stage_done=None, stage_total=None, call=False, phase=None, detector_status=None):
+        events.append((stage, stage_done, stage_total, call, phase, detector_status))
 
     return events, dataclasses.replace(deps, on_progress=cb)
 
@@ -40,7 +40,13 @@ def test_stages_are_reported_in_pipeline_order(mock_deps_vulnerable):
     firsts = [s for i, s in enumerate(order) if s not in order[:i]]
     assert firsts == ["recon", "attack_r1", "patch", "attack_r2", "report"], \
         "화면의 단계 목록은 pipeline.py 의 실제 함수 순서 그대로여야 한다"
-    assert [s["key"] for s in PROGRESS_STAGES] == firsts, "계약의 단계 목록과 엔진이 어긋나면 안 된다"
+    # 탐지기가 없으면 detector 통지는 없지만, 계약의 단계 목록에는 자리가 있고 순서는 엔진과 같다.
+    assert [s["key"] for s in PROGRESS_STAGES] == ["recon", "attack_r1", "patch", "attack_r2", "detector", "report"]
+    assert [k for k in (s["key"] for s in PROGRESS_STAGES) if k != "detector"] == firsts, \
+        "계약의 단계 목록과 엔진이 어긋나면 안 된다"
+    # 이 의존성은 보강 후 전부 차단된다 → 검사할 문장이 없어 건너뛴다.
+    assert events[-1][0] == "report" and events[-1][5] == "no_targets", \
+        "검사를 건너뛴 이유가 결과 정리 통지에 실려야 한다"
 
 
 @pytest.mark.boundary
@@ -50,7 +56,7 @@ def test_attack_progress_counts_are_measured_not_estimated(mock_deps_vulnerable)
 
     calls = [e for e in events if e[3]]
     assert calls, "공격 1건마다 통지가 있어야 한다"
-    for _stage, done, total, _ in calls:
+    for _stage, done, total, *_ in calls:
         assert 1 <= done <= total, "이번 배치 안에서 done/total 은 항상 정확해야 한다"
     r2 = [e for e in calls if e[0] == "attack_r2"]
     assert r2 and r2[-1][1] == r2[-1][2], "배치 마지막 통지는 done == total 이다"
@@ -105,4 +111,55 @@ def test_progress_payload_survives_missing_progress():
     """레지스트리에 진행 정보가 아직 없어도 화면이 분기하지 않게 키는 항상 내려간다."""
     body = progress_payload(None)
     assert body["stage"] == "recon" and body["calls_done"] == 0
-    assert len(body["stages"]) == 5
+    assert len(body["stages"]) == 6
+    assert body["phase"] is None and body["detector_status"] is None
+
+
+@pytest.mark.boundary
+def test_detector_stage_is_reported_between_retest_and_report(mock_deps_vulnerable):
+    """탐지기가 있고 남은 유출이 있으면 detector 통지가 재진단과 결과 정리 사이에 온다 — 계약 순서 그대로."""
+    from joker.detect_ko import KoDetector
+    from joker.providers.mock import MockProvider
+
+    # 방어 머리표를 무시하는 victim → 보강 후에도 유출이 남는다(검사 대상이 생긴다).
+    stubborn = MockProvider(role="victim", scenario={"secret": "SEOUL-1234", "defense_marker": ""}, model="mock-victim")
+    events, deps = _collect(dataclasses.replace(
+        mock_deps_vulnerable, victim=stubborn, detector=KoDetector(predict_fn=lambda texts: [0.9] * len(texts))))
+    state = run_pipeline(TARGET_WITH_SECRET, deps)
+    residual = sum(a.round_no == 2 and a.verdict.value == "leak" for a in state["attempts"])
+    assert residual > 0
+    order = [s for s, *_ in events]
+    firsts = [s for i, s in enumerate(order) if s not in order[:i]]
+    assert firsts == [s["key"] for s in PROGRESS_STAGES]
+    det = [e for e in events if e[0] == "detector"]
+    assert len(det) == 1 and det[0][2] == residual, "검사 건수는 실제 남은 유출 수다"
+    assert events[-1][0] == "report" and events[-1][5] == "completed"
+
+
+@pytest.mark.boundary
+def test_judge_phase_is_announced_after_each_batch(mock_deps_vulnerable):
+    """공격 묶음을 다 던진 뒤 판정 구간을 알린다 — 57/57 에서 멈춘 화면처럼 보이지 않게."""
+    events, deps = _collect(mock_deps_vulnerable)
+    state = run_pipeline(TARGET_WITH_SECRET, deps)
+    judge = [e for e in events if e[4] == "judge"]
+    assert {e[0] for e in judge} == {"attack_r1", "attack_r2"}
+    r2_total = sum(a.round_no == 2 for a in state["attempts"])
+    assert [e for e in judge if e[0] == "attack_r2"][-1][2] == r2_total
+    # 판정 구간 통지 직전은 그 묶음의 마지막 공격이다(판정은 공격을 다 던진 뒤).
+    i = events.index([e for e in judge if e[0] == "attack_r2"][-1])
+    assert events[i - 1][3] is True and events[i - 1][1] == events[i - 1][2]
+
+
+@pytest.mark.boundary
+def test_payload_keeps_detector_status_and_fixed_stages():
+    job = Job("run_d", {"model": "m"}, {"victim_max": 114})
+    job.note_progress("attack_r2", stage_done=57, stage_total=57, call=True)
+    job.note_progress("attack_r2", phase="judge", stage_total=57)
+    body = progress_payload(job.progress)
+    assert body["phase"] == "judge" and body["stage_index"] == 3 and body["calls_done"] == 1
+    job.note_progress("report", detector_status="no_targets")
+    body = progress_payload(job.progress)
+    assert body["stage_index"] == 5 and body["detector_status"] == "no_targets" and body["phase"] is None
+    assert [s["key"] for s in body["stages"]] == [s["key"] for s in PROGRESS_STAGES]
+    job.note_progress("report")
+    assert progress_payload(job.progress)["detector_status"] == "no_targets", "한 번 정해진 결말은 유지된다"
