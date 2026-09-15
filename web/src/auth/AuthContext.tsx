@@ -27,6 +27,8 @@ interface AuthState {
   login: (email: string, password: string) => Promise<{ error: string | null; claimed: boolean }>;
   signup: (email: string, password: string, confirm: string) => Promise<{ error: string | null; claimed: boolean }>;
   logout: () => Promise<void>;
+  /** 탈퇴 직후 이 탭의 로그인 상태만 비운다(서버는 부르지 않는다 — 계정이 이미 없다). */
+  forgetLogin: () => void;
   refreshGuest: () => Promise<GuestQuota>;
   rememberRun: (runId: string | null) => void;
 }
@@ -166,6 +168,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setEmail(null);
   }, []);
 
+  // 탈퇴 직후 이 탭의 로그인 상태만 정리한다.
+  // ★ logout 과 달리 서버를 부르지 않는다 — 계정과 세션이 이미 지워져 있어 부를 대상이 없다.
+  const forgetLogin = useCallback(() => {
+    clearLogin();
+    setPendingClaim(null);
+    setToken(null);
+    setEmail(null);
+    // 탈퇴한 계정의 진단은 함께 지워졌다. 그 run_id 를 들고 있으면 다음 로그인에서 404 를 claim 하려 든다.
+    setSession({ lastRunId: null });
+    setLastRunId(null);
+  }, []);
+
   const rememberRun = useCallback((runId: string | null) => {
     setSession({ lastRunId: runId });
     setLastRunId(runId);
@@ -173,8 +187,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<AuthState>(() => ({
     token, email, lastRunId, guest, loggedIn: Boolean(token),
-    login, signup, logout, refreshGuest, rememberRun,
-  }), [token, email, lastRunId, guest, login, signup, logout, refreshGuest, rememberRun]);
+    login, signup, logout, forgetLogin, refreshGuest, rememberRun,
+  }), [token, email, lastRunId, guest, login, signup, logout, forgetLogin, refreshGuest, rememberRun]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

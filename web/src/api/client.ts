@@ -71,5 +71,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 export const api = {
   get: <T>(path: string) => request<T>("GET", path),
   post: <T>(path: string, body: unknown = {}) => request<T>("POST", path, body),
-  del: <T>(path: string) => request<T>("DELETE", path),
+  // DELETE 도 본문을 받는다 — 회원 탈퇴는 비밀번호를 다시 확인한다(DELETE /api/me).
+  // ★ 토큰·비밀번호를 URL 에 싣지 않으려면 본문밖에 없다(이 파일 상단 규칙).
+  del: <T>(path: string, body?: unknown) => request<T>("DELETE", path, body),
 };

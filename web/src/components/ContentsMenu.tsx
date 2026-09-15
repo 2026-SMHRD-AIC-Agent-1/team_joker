@@ -23,10 +23,10 @@ function PageMenu({ page }: { page: typeof PAGES[number] }) {
       </button>
     </div>
     <div id={panelId} className="contents-panel" hidden={!open}>
-      {page.sections.map(([id, label], index) => <Link key={id} to={`${page.path}#${id}`} onClick={() => {
-        setOpen(false);
-        if (location.pathname === page.path) document.getElementById(id)?.scrollIntoView({ block: "start" });
-      }}><span>{String(index + 1).padStart(2, "0")}</span>{label}<span aria-hidden="true">→</span></Link>)}
+      {/* 같은 페이지 안이어도 스크롤은 Layout 한 곳이 맡는다 — 여기서 따로 scrollIntoView 를
+          부르면 두 스크롤이 서로를 끊는다(lib/scroll.ts 주석). 해시만 바꾸면 된다. */}
+      {page.sections.map(([id, label], index) => <Link key={id} to={`${page.path}#${id}`} onClick={() => setOpen(false)}
+        ><span>{String(index + 1).padStart(2, "0")}</span>{label}<span aria-hidden="true">→</span></Link>)}
     </div>
   </div>;
 }

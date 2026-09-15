@@ -169,7 +169,8 @@ export interface Progress {
 export interface Run {
   run_id: string;
   created_at?: string;
-  status: "running" | "done" | "inconclusive" | "error" | string;
+  // cancelled = 사용자가 멈춘 진단. 저장된 결과가 없어 report 는 항상 null 이다(error 와 다른 사건).
+  status: "running" | "done" | "inconclusive" | "error" | "cancelled" | string;
   target: Target;
   recon?: { persona?: string; org?: string; assets?: { name: string; kind: string; confidence?: number }[] };
   privacy_notice?: string;

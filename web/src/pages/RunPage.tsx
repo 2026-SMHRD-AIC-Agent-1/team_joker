@@ -14,6 +14,7 @@ import { Breadcrumb, PageHeader } from "../components/PageHeader";
 import { Section } from "../components/Section";
 import { EmptyState, Failure, ServerDown, Skeleton } from "../components/States";
 import { EvidenceDialog } from "../components/ToolEvidence";
+import { scrollUnderTopbar } from "../lib/scroll";
 import { EvidenceCards } from "../components/report/Evidence";
 import { FindingDetail } from "../components/report/FindingDetail";
 import { Findings } from "../components/report/Findings";
@@ -70,7 +71,13 @@ export function ReportBody({ run, onSignup, focusFindings }: { run: Run; onSignu
   const setSection = (value: number) => {
     setParams(previous => { const next = new URLSearchParams(previous); next.set("section", String(value)); return next; }, { replace: true });
     // ★ 탭은 쿼리만 바꾸므로 Layout 의 pathname 스크롤 초기화가 걸리지 않는다 — 여기서 직접 올린다.
-    requestAnimationFrame(() => document.getElementById("report-navigation")?.scrollIntoView({ block: "start" }));
+    // ★ scrollIntoView 를 쓰지 않는다(0915): 탭바가 sticky(top:88) 라 '이미 붙어 있는 자리' 로
+    //   계산돼, 탭을 누르면 패널 첫 제목이 탭바 뒤에 숨었다(실측: 제목 y=132, 탭바 88~173).
+    //   상단바 높이만큼만 올리면 탭바는 제 자리에 붙고 내용은 그 바로 아래에서 시작한다.
+    requestAnimationFrame(() => {
+      const nav = document.getElementById("report-navigation");
+      if (nav) scrollUnderTopbar(nav);
+    });
   };
   useEffect(() => { if (focusFindings) setSection(1); }, [focusFindings]);
   const labels = ["결과 요약", "발견된 문제", "지시문 보강안", "자세한 기록"];
@@ -104,6 +111,59 @@ export function ReportBody({ run, onSignup, focusFindings }: { run: Run; onSignu
       </div>
     </section>
   </>;
+}
+
+/**
+ * 진행 중인 진단 중단.
+ *
+ * ★ 확인을 한 번 받는다 — 멈추면 그때까지 던진 공격은 버려진다(서버가 아무것도 저장하지 않는다).
+ *   BYOK 라면 이미 나간 호출 요금은 되돌아오지 않으므로 그 사실도 같이 말한다.
+ * ★ 누른 직후 폴링이 상태를 다시 읽는다. '멈추는 중' 을 화면이 지어내지 않고 서버가 준 상태로만 바뀐다.
+ */
+function CancelButton({ runId, onCancelled }: { runId: string; onCancelled: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [requested, setRequested] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const close = useCallback(() => { setOpen(false); setErr(null); }, []);
+  const stop = async () => {
+    setBusy(true);
+    try {
+      await api.post(`/api/runs/${encodeURIComponent(runId)}/cancel`, {});
+      setOpen(false);
+      setRequested(true);
+      onCancelled();
+    } catch (e) {
+      // 이미 끝난 진단이면 서버가 409 를 준다 — 실패가 아니라 '늦었다' 이므로 그대로 결과를 읽는다.
+      if (e instanceof ApiError && e.code === "not_running") { setOpen(false); onCancelled(); return; }
+      setErr(e instanceof ApiError ? e.message : "진단 서버에 연결하지 못했습니다.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  // ★ 요청이 접수된 뒤에도 화면은 잠시 '진행 중' 이다 — 엔진은 지금 던지고 있는 공격 1건을
+  //   마친 뒤 확인 지점에서 멈춘다. 그 사이를 비워 두면 사용자는 버튼이 안 먹은 줄 알고 다시 누른다.
+  //   여기서 말하는 것은 '서버가 요청을 받았다'(204) 까지다 — 멈췄다고 앞질러 말하지 않는다.
+  if (requested) {
+    return <span className="checkline" role="status" style={{ margin: 0 }}>
+      중단을 요청했습니다 — 지금 던지고 있는 공격 1건이 끝나면 멈춥니다.
+    </span>;
+  }
+  return (
+    <>
+      <button type="button" className="btn" onClick={() => setOpen(true)}>진단 중단</button>
+      <Dialog title="진행 중인 진단을 중단할까요?" open={open} onClose={close}>
+        <p>지금까지 던진 공격 결과는 <b>저장되지 않고 버려집니다</b>. 결과를 보려면 처음부터 다시 진단해야 합니다.</p>
+        <p className="fine">내 API 키로 진단 중이라면 이미 나간 호출의 요금은 되돌릴 수 없습니다.</p>
+        <p className="mono fine">{runId}</p>
+        {err ? <div className="form-error" role="alert">{err}</div> : null}
+        <div className="dlg-actions">
+          <button type="button" className="btn" onClick={close}>계속 진행</button>
+          <button type="button" className="btn btn-danger" disabled={busy} onClick={stop}>{busy ? "중단하는 중…" : "진단 중단"}</button>
+        </div>
+      </Dialog>
+    </>
+  );
 }
 
 function DeleteButton({ runId }: { runId: string }) {
@@ -207,7 +267,23 @@ export function RunPage() {
         {error ? <ServerDown runId={runId} /> : null}
         <ProgressView progress={run.progress ?? {}} estimatedCalls={run.estimated_calls}
           startedAt={start?.at ?? null} mode={start?.mode ?? null} />
-        <p className="fine">취소 기능은 제공하지 않습니다 — 서버에 취소 API 가 없어서, 누르면 멈춘 것처럼 보이지만 실제로는 계속 도는 버튼이 되기 때문입니다.</p>
+        <div className="btn-row" style={{ marginTop: 12 }}>
+          <CancelButton key={run.run_id} runId={run.run_id} onCancelled={() => setTick((x) => x + 1)} />
+          <span className="fine" style={{ margin: 0 }}>창을 닫아도 진단은 서버에서 계속됩니다.</span>
+        </div>
+      </>
+    );
+  }
+  if (run.status === "cancelled") {
+    // ★ 취소를 '실패' 화면으로 그리지 않는다 — 사용자가 누른 정지와 도구의 고장은 다른 사건이다.
+    return (
+      <>
+        <Breadcrumb parts={["새 진단", "중단됨"]} />
+        <PageHeader title="진단을 중단했습니다" />
+        <EmptyState icon="⏹" title="요청하신 대로 진단을 멈췄습니다"
+          why={<>진단은 끝까지 돌아야 <b>보강 전 → 후</b>를 같은 공격으로 비교할 수 있습니다. 중간까지의 결과는
+            57건 기준의 수치와 나란히 둘 수 없어 <b>저장하지 않았습니다</b> — 기록에도 남지 않습니다.</>}
+          action={<Link className="btn btn-primary" to="/diagnose#start">＋ 새 진단 시작</Link>} />
       </>
     );
   }
