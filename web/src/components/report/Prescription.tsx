@@ -58,7 +58,7 @@ export function Prescription({ rep, gated, onSignup }: { rep: Report; gated: Gat
   const hidden = gated.patched_prompt_hidden_lines ?? 0;
   return (
     <>
-      <Section title="보강안과 변경 내용" desc="두 가지입니다 — 지시문을 고치고, 입력단에 탐지기를 답니다." />
+      <Section title="보강안과 변경 내용" desc="지시문 보강안과 남은 유출 공격의 추가 탐지 결과를 검토하세요." />
       {/* ★ 0911 D: '정상 질문으로 재검증' 권고를 맨 위로. 수치는 headline_metrics.json 에서만. */}
       <div className="notice" style={{ marginBottom: 12 }} data-testid="recheck">
         {/* ★ 아래 문장은 tests/test_web_guard.py 의 정직성 목록에 있다 — 한 줄로 둔다(줄바꿈하면 검사가 못 찾는다). */}

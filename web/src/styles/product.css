@@ -1447,3 +1447,29 @@ a,button {
 @media(prefers-reduced-motion:reduce) {
   .prog-orbit::before, .prog-spinner, .prog-dots i { animation:none; }
 }
+
+/* 검사 폼은 소개 모션 밖에서 즉시 사용할 수 있다. */
+.inspection-page { max-width:1040px; margin:0 auto; }
+.inspection-start { position:relative; padding:32px 24px 48px; scroll-margin-top:20px; }
+.anchor-alias { position:absolute; top:0; scroll-margin-top:20px; }
+.inspection-start h1 { margin:0 0 12px; font-size:clamp(28px,4vw,38px); }
+.inspection-start header p,.inspection-guide p { color:#5A6478; line-height:1.8; }
+.inspection-start .tool-workspace { margin-top:24px; }
+.inspection-guide { min-height:0; padding:40px 24px; border-top:1px solid #0F172A14; scroll-margin-top:20px; }
+.inspection-guide h2 { font-size:28px; margin:0 0 20px; }
+.inspection-guide .story-link { margin-top:20px; }
+.inspection-comparison { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:24px; margin-top:28px; }
+.inspection-comparison article { padding:24px; border:1px solid #0F172A14; border-radius:16px; }
+@media(max-width:700px) {
+  .inspection-start,.inspection-guide { padding:24px 0 32px; }
+  .inspection-comparison { grid-template-columns:minmax(0,1fr); }
+  .inspection-page .tool-workspace { min-width:0; }
+}
+
+.page-transition:has(> .inspection-page) { animation:none; }
+@media(max-width:700px) {
+  .quiet-landing .story-section { min-height:0; padding:40px 0; }
+  .quiet-landing .process-line { grid-template-columns:repeat(2,minmax(0,1fr)); gap:24px; margin-top:32px; }
+  .quiet-landing .process-line h3 { font-size:20px; }
+  .quiet-landing .quiet-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); gap:24px; }
+}

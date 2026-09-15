@@ -113,6 +113,15 @@ export interface FindingsSummary {
 }
 
 export interface FilterRecommendation {
+  status?: "completed" | "no_targets" | "unavailable" | "failed" | "not_recorded";
+  checked?: number;
+  unchecked?: number;
+  ml_additional?: number | null;
+  detected_total?: number | null;
+  undetected?: number | null;
+  model?: string;
+  threshold?: number | null;
+  coverage?: string;
   residual: number;
   rule_blockable: number;
   flags: Record<string, number>;

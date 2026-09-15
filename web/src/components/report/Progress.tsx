@@ -6,10 +6,12 @@ import { Skeleton } from "../States";
 
 // 서버가 주는 stage key 에 1:1 로 대응시킨다 — 화면이 단계를 지어내면 실제 파이프라인과 갈린다.
 export const STAGE_KO: Record<string, string> = {
+  detector: "JOKER-KO 추가 검사",
   recon: "지시문 분석", attack_r1: "공격 진단", patch: "방어 문구 생성", attack_r2: "재진단", report: "결과 정리",
 };
 
 const STAGE_HINT: Record<string, string> = {
+  detector: "지시문 보강 후에도 남은 유출 공격을 검사하고 있습니다.",
   recon: "지시문에서 보호할 정보와 보안 규칙을 살펴보고 있어요.",
   attack_r1: "다양한 공격으로 보안 규칙이 잘 지켜지는지 확인하고 있어요.",
   patch: "발견된 취약점을 바탕으로 방어 문구를 만들고 있어요.",
@@ -61,7 +63,7 @@ export function ProgressView({ progress, estimatedCalls, startedAt, mode }: {
       <div className="prog-body">
         <div className="prog-activity" role="status" aria-live="polite" aria-atomic="true">
           <div className="prog-activity-title"><span className="prog-dots" aria-hidden="true"><i /><i /><i /></span>
-            <strong>{progress.queued ? "진단 순서를 기다리고 있어요" : current ? `${current.label} 중이에요` : "진단을 준비하고 있어요"}</strong>
+            <strong>{progress.queued ? "진단 순서를 기다리고 있어요" : current?.key === "detector" ? "JOKER-KO로 추가 탐지 여부를 확인하고 있어요" : current ? `${current.label} 중이에요` : "진단을 준비하고 있어요"}</strong>
           </div>
           <p>{progress.queued ? "순서가 되면 자동으로 시작됩니다." : STAGE_HINT[current?.key ?? ""] ?? "진단 상태를 확인하고 있어요. 잠시만 기다려 주세요."}</p>
         </div>

@@ -17,7 +17,7 @@ it("상단 메뉴는 각각 별도 페이지를 가리키고 호버하면 해당
     expect(trigger.getAttribute("aria-expanded")).toBe("true");
     const panel = document.getElementById(trigger.getAttribute("aria-controls")!)!;
     expect(panel.hidden).toBe(false);
-    expect(panel.querySelectorAll("a")).toHaveLength(3);
+    expect(panel.querySelectorAll("a")).toHaveLength(path === "/" ? 4 : 2);
     panel.querySelectorAll("a").forEach((item) => expect(item.getAttribute("href")?.startsWith(`${path}#`)).toBe(true));
     fireEvent.mouseLeave(menu);
     expect(panel.hidden).toBe(true);

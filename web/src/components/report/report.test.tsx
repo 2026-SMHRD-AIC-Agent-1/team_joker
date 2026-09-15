@@ -8,7 +8,7 @@ import { Findings } from "./Findings";
 import { GATE_DECOY } from "./Gate";
 import { Inconclusive } from "./Outcomes";
 import { Prescription } from "./Prescription";
-import { stageRows } from "./Progress";
+import { ProgressView, stageRows } from "./Progress";
 
 beforeEach(() => {
   vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ status: "ok", profile: "local", detector_ready: true }), { status: 200 })));
@@ -77,4 +77,13 @@ describe("진행 표시", () => {
     expect(rows[1].detail).toBe("공격 24건 실행 · 이번 묶음 6/39");
     expect(rows.map((r) => r.detail).join("")).not.toContain("%");
   });
+});
+
+it("JOKER-KO 안내는 서버 단계에만 반응하고 경과 시간을 유지한다", () => {
+  const { rerender } = render(<ProgressView progress={{stage_index:0, queued:false, stages:[{key:'detector',label:'추가 검사'}]}} startedAt={Date.now()-5000} mode="screening" />);
+  expect(screen.getByRole('timer').textContent).toBe('0:05');
+  expect(screen.getByRole('status').textContent).toContain('JOKER-KO로 추가 탐지 여부를 확인하고 있어요');
+  rerender(<ProgressView progress={{stage_index:0, queued:false, stages:[{key:'report',label:'결과 정리'}]}} startedAt={Date.now()-5000} mode="screening" />);
+  expect(screen.getByRole('status').textContent).not.toContain('JOKER-KO');
+  expect(screen.getByRole('timer')).toBeTruthy();
 });

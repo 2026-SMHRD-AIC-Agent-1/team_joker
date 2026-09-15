@@ -43,3 +43,27 @@ it("직접 주소의 구역 선택을 복원한다", () => {
   expect(screen.getByTestId("patched")).toBeTruthy();
   expect(screen.queryByTestId("hero")).toBeNull();
 });
+
+it.each([
+  ['completed', '공격 8건을 추가로 검사했습니다.', 4, 2],
+  ['no_targets', '추가 검사 대상이 없습니다.', null, null],
+  ['unavailable', '규칙 검사 결과만 제공합니다.', null, null],
+  ['failed', '규칙 검사 결과만 제공합니다.', null, null],
+  ['not_recorded', 'ML 검사 기록 없음', null, null],
+] as const)('보강안 탭에서 저장된 필터 상태 %s를 렌더한다', (status, message, ml, missed) => {
+  const fixture = structuredClone(run);
+  fixture.report!.filter_recommendation = {residual: status === 'no_targets' ? 0 : 8, rule_blockable:2,
+    status, ml_additional:ml, undetected:missed, detected_total:6, checked:status === 'completed' ? 8 : 0,
+    unchecked:status === 'completed' ? 0 : 8, flags:{}, note:'저장된 합계 6건', basis:'rules_and_ml'};
+  render(<MemoryRouter initialEntries={['/runs/test?section=2']}><ReportBody run={fixture} onSignup={()=>{}} focusFindings={false}/></MemoryRouter>);
+  const detail = screen.getByTestId('filter-detail');
+  expect(detail.textContent).toContain(message);
+  expect(detail.textContent).toContain('운영 서비스에 필터가 적용된 상태는 아닙니다');
+  if (status === 'completed') {
+    expect(detail.textContent).toContain('4건');
+    expect(detail.textContent).toContain('저장된 합계 6건');
+  } else {
+    expect(detail.textContent).toContain('미검사');
+    expect(detail.textContent).not.toContain('저장된 합계 6건');
+  }
+});

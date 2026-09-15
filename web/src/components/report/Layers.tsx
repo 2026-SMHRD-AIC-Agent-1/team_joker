@@ -1,9 +1,4 @@
-// 진단 엔진 ↔ JOKER-KO 탐지기. **코드의 실제 관계** 를 그린다.
-//
-// ★ 요청 흐름(입력 → 탐지기 → 모델)을 그리면 안 된다 — 그건 고객이 배치할 목표 모습이지 우리 코드가 아니다.
-//   진단 파이프라인은 KoDetector 를 부르지 않고, 유일한 접점인 filter_recommendation 은 남은 유출 문구에
-//   난독화 **규칙만** 사후로 대 보는 계산이다(basis = rule_layer_only). 두 기능은 병렬이고 잇는 것은 권고다.
-// ★ 여기 숫자는 filter_recommendation 이 준 값이거나 그 뺄셈, 그리고 headline_metrics.json 뿐이다.
+// 진단 후 잔여 유출에 대한 저장된 사후 검사 결과. 운영 차단과 별개입니다.
 import { useNavigate } from "react-router-dom";
 import type { Report } from "../../api/types";
 import { metric } from "../../evidence/metrics";
@@ -11,7 +6,6 @@ import { useHealth } from "../../hooks/useHealth";
 import { DETECTOR_DEMO_TEXT } from "../../lib/examples";
 import type { DetectPrefill } from "../../lib/examples";
 import { residualSample } from "../../lib/findings";
-import { sev } from "../../lib/meta";
 import { SubSection } from "../Section";
 import { StatRow } from "../StatRow";
 
@@ -57,14 +51,14 @@ export function LayerRelation({ residual }: { residual: number }) {
       <div className="relation">
         <div className="rel-box done"><span className="tag">이번에 시험한 것</span><b>진단 엔진</b>
           <span className="d">공격을 던져 뚫리는 곳을 찾고, 지시문을 고칩니다.</span></div>
-        <div className="rel-link"><span>결과가<br />배치 근거</span><i>▶</i></div>
-        <div className="rel-box todo"><span className="tag">아직 배치 전</span><b>JOKER-KO 탐지기</b>
-          <span className="d">요청이 모델에 닿기 전에 잘라냅니다.</span></div>
+        <div className="rel-link"><span>잔여 유출<br />사후 검사</span><i>▶</i></div>
+        <div className="rel-box todo"><span className="tag">추가 탐지 확인</span><b>JOKER-KO 탐지기</b>
+          <span className="d">남은 유출 공격의 ML·규칙 탐지 기여를 확인합니다.</span></div>
       </div>
       <Ladder />
-      <div className="layers-note in-card"><b>두 기능은 서로를 호출하지 않습니다.</b>{" "}
-        {residual ? <>보강만으로 막지 못한 <b>{residual}건</b>이 탐지기를 배치할 근거입니다.</>
-          : "이번엔 남은 유출이 없지만, 새 우회는 계속 나오므로 2차 방어로 함께 배치하기를 권고합니다."}
+      <div className="layers-note in-card"><b>진단 마지막에 잔여 유출을 사후 검사 대상으로 삼습니다.</b>{" "}
+        {residual ? <>보강 후 남은 <b>{residual}건</b>의 실제 검사 상태는 아래 결과에서 확인하세요.</>
+          : "잔여 유출이 없으면 추가 검사를 실행하지 않습니다."}
       </div>
     </div>
   );
@@ -76,7 +70,7 @@ export function FilterAction({ rep, index }: { rep: Report; index: number }) {
   if (!note) return null;
   return (
     <div className="next-action"><span className="step">{index}</span>
-      <div><b>입력단에 JOKER-KO 탐지기를 배치하세요</b><p>{note}</p></div></div>
+      <div><b>JOKER-KO 추가 탐지 결과를 확인하세요</b><p>{note}</p></div></div>
   );
 }
 
@@ -106,48 +100,28 @@ export function DetectorCta({ rep }: { rep: Report }) {
   );
 }
 
-/** 탐지기 배치 권고의 상세 수치. 요약·권고 문장은 위(관계도·권고 1번)가 맡는다. */
+/** 저장된 수치만 표시한다. 미실행은 0건으로 대체하지 않는다. */
 export function FilterLayerDetail({ rep }: { rep: Report }) {
   const fr = rep.filter_recommendation;
-  if (!fr?.note) return null;
-  const residual = fr.residual ?? 0;
-  const blockable = fr.rule_blockable ?? 0;
-  const mlOnly = Math.max(residual - blockable, 0);
-  const flags = Object.entries(fr.flags ?? {});
-  const detail = ["ood_recall", "fpr", "public_detector", "defense_matrix"].map(metric);
-  return (
-    <>
-      {/* ★ 두 층의 차이 설명은 위 관계도가 이미 한다 — 같은 문단을 두 번 읽히지 않는다(0914). */}
-      <SubSection title="JOKER-KO 탐지기 — 이 진단에서 나온 근거 수치" />
-      <div className="notice" style={{ marginTop: 0 }}>{fr.note}</div>
-      <StatRow items={[
-        { label: "보강 후 남은 유출", value: `${residual}건`, sub: "지시문 보강만으로는 막지 못한 공격",
-          color: residual ? sev("unresolved") : sev("resolved") },
-        { label: "규칙 층만으로 차단 가능", value: `${blockable}건`, sub: "난독화 시그니처에 걸리는 건",
-          color: blockable ? sev("resolved") : undefined },
-        { label: "ML 층 판단이 필요", value: `${mlOnly}건`, sub: "추가 검증이 필요한 요청" },
-      ]} />
-      {flags.length ? (
-        <div style={{ marginTop: 14 }}>규칙이 잡는 사유{" "}
-          {flags.map(([k, v]) => <span className="pill" key={k}>{FLAG_KO[k] ?? k} · {v}건</span>)}</div>
-      ) : null}
-      {/* ★ basis=rule_layer_only — 규칙 층만 돌려 센 값이라 하한이다. 이 단서를 빼면 과소보고가 된다. */}
-      <p className="fine">※ 가운데·오른쪽은 <b>규칙 층만</b> 돌려 센 하한입니다(<code>{fr.basis || "rule_layer_only"}</code>).</p>
-      <details className="xp" style={{ marginTop: 12 }}>
-        <summary>이 층이 어떻게 판정하나 — ML + 난독화 규칙 2중 방어</summary>
-        <div className="xp-body">
-          <p><b>ML 층 · JOKER-KO</b> — Prompt Guard 2 를 한국어 공격 문구로 파인튜닝한 분류 모델입니다. 문구 하나를 받아 ‘공격일 확률’ 을
-            내고, 임계값을 넘으면 INJECTION 으로 판정합니다.</p>
-          <p style={{ marginTop: 8 }}><b>규칙 층 · 난독화 시그니처</b> — 문자 변형 등 정해진 패턴을 검사합니다(거꾸로 뒤집기 · 자모 분해 ·
-            글자 사이 구분자 · base64 · 로마자 음차). 학습을 하지 않는 순수 함수라 학습셋과 무관합니다 — 그래서 순환 평가 위험이 없습니다.</p>
-          <p style={{ marginTop: 8 }}><b>두 층의 관계</b> — 둘 중 <b>하나만 걸려도 차단</b>합니다. JOKER-KO 탐지기 화면에서 그 장면을 직접
-            만들어 볼 수 있습니다(예시 버튼 중 ‘문자 변형 요청’).</p>
-          {detail.map((x) => x ? (
-            <p className="fine" key={x.key}>· {x.label} <b>{x.value}</b> — {x.detail} (측정 조건 · {x.condition})</p>
-          ) : null)}
-          <p className="fine">이 진단의 수치가 아니라 <b>이 층 자체의 검증 수치</b>입니다. 지금 진단한 지시문과는 다른 데이터로 측정했습니다.</p>
-        </div>
-      </details>
-    </>
-  );
+  const complete = fr?.status === "completed";
+  const noTargets = fr?.status === "no_targets";
+  const legacy = !fr?.status || fr.status === "not_recorded";
+  const count = (n: number | null | undefined) => n == null ? "미검사" : `${n}건`;
+  return <div data-testid="filter-detail">
+    <SubSection title="JOKER-KO를 함께 사용하면?" />
+    <p>{legacy ? "ML 검사 기록 없음 — 과거 진단은 자동 재검사하지 않습니다."
+      : noTargets ? "보강 후 잔여 유출이 없어 추가 검사 대상이 없습니다."
+      : complete ? `지시문 보강 후에도 유출을 일으킨 공격 ${fr.residual}건을 추가로 검사했습니다.`
+      : "ML 검사를 완료하지 못했습니다. 규칙 검사 결과만 제공합니다."}</p>
+    {fr ? <StatRow items={[
+      { label: "보강 후 남은 유출", value: `${fr.residual}건`, sub: "R2 확정 유출" },
+      { label: "규칙으로 탐지", value: `${fr.rule_blockable}건`, sub: "난독화 규칙" },
+      { label: "JOKER-KO가 추가 탐지", value: complete ? count(fr.ml_additional) : "미검사", sub: "규칙 탐지와 중복 제외" },
+      { label: "둘 다 탐지하지 못함", value: complete ? count(fr.undetected) : "미검사", sub: "검사 완료 항목 기준" },
+    ]} /> : null}
+    {complete ? <p>{fr.note}</p> : null}
+    {fr && !legacy && !noTargets ? <p className="fine">ML 검사 완료 {fr.checked ?? 0}건 · 미검사 {fr.unchecked ?? fr.residual}건 · 모델 {fr.model} · 임계값 {fr.threshold ?? "확인 불가"}</p> : null}
+    {fr && Object.keys(fr.flags ?? {}).length ? <p>규칙 탐지 근거: {Object.entries(fr.flags).map(([k, v]) => <span className="pill" key={k}>{FLAG_KO[k] ?? k} · {v}건</span>)}</p> : null}
+    <p className="fine">이번 진단 공격문을 사후 검사한 결과입니다. 운영 서비스에 필터가 적용된 상태는 아닙니다. 기존 ASR·등급과 별개이며 일반적인 정확도나 운영 방어율을 뜻하지 않습니다.</p>
+  </div>;
 }

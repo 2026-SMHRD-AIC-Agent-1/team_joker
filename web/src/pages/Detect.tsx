@@ -35,9 +35,9 @@ export function DetectionCard({ d }: { d: DetectResult }) {
       </div>
       <div className="det-grid">
         <div>
-          <div className="ml">ML 공격확률</div>
+          <div className="ml">ML 모델 점수</div>
           <div className="mv num" style={{ color }}>{(score * 100).toFixed(1)}%</div>
-          <div className="bar" role="img" aria-label={`ML 공격확률 ${(score * 100).toFixed(1)}%`}>
+          <div className="bar" role="img" aria-label={`ML 모델 점수 ${(score * 100).toFixed(1)}%`}>
             <i style={{ width: `${Math.min(Math.max(score, 0), 1) * 100}%`, background: color }} />
           </div>
           <p className="fine">threshold {thr}</p>
@@ -47,11 +47,11 @@ export function DetectionCard({ d }: { d: DetectResult }) {
             <>
               <div><b>규칙 탐지(난독화):</b> {flags.map((f) => <span className="pill" key={f}>{f}</span>)}</div>
               {score < thr && inj ? (
-                <div className="notice" style={{ marginTop: 10 }}>💡 ML 확률은 낮지만(놓칠 뻔), <b>규칙 필터가 난독화를 잡아</b> 최종 INJECTION 으로
+                <div className="notice" style={{ marginTop: 10 }}>💡 ML 점수은 낮지만(놓칠 뻔), <b>규칙 필터가 난독화를 잡아</b> 최종 INJECTION 으로
                   판정했습니다 → ML + 규칙 <b>2중 방어</b>가 작동한 예입니다.</div>
               ) : null}
             </>
-          ) : <p className="fine">규칙(난독화) 신호 없음 — 판정은 ML 확률 기준입니다.</p>}
+          ) : <p className="fine">규칙(난독화) 신호 없음 — 판정은 ML 점수 기준입니다.</p>}
         </div>
       </div>
       <p className="fine">모델: <code>{d.model}</code></p>
@@ -87,11 +87,7 @@ export function Detect({ embedded = false }: { embedded?: boolean }) {
   };
 
   const noModel = (
-    <Failure icon="📦" title="탐지 모델이 이 PC 에 없습니다" code="detector_unavailable" tone="warn"
-      why={<>JOKER-KO 학습 모델은 1.1GB 라 저장소에 커밋하지 않습니다(<code>.gitignore</code>). API 서버를 띄운 PC 에 모델 폴더가 있어야
-        탐지가 됩니다.<br /><b>진단 기능은 이것과 무관하게 정상 동작합니다.</b></>}
-      actions={[<><code>detector/artifacts/joker-ko</code> 폴더가 API 서버 PC 에 있는지 확인</>,
-        "없으면 학습한 PC 에서 그 폴더를 복사해 오기", "복사 후 API 서버를 다시 띄우면 사이드바 상태가 바뀝니다"]} />
+    <div className="notice" role="status">JOKER-KO 모델을 현재 사용할 수 없거나 검사를 완료하지 못했습니다. 잠시 후 다시 시도해 주세요. 지시문 진단은 계속 사용할 수 있으며 ML 추가 검사는 미실행으로 표시됩니다.</div>
   );
 
   return (
