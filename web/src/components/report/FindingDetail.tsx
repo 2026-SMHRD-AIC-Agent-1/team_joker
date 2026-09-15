@@ -76,7 +76,7 @@ export function FindingDetail({ run, fid }: { run: Run; fid: string }) {
             {rows.map(([k, v]) => <div className="row" key={k}><span className="k">{k}</span><span className="v">{v}</span></div>)}
           </div>
           <SubSection title="권고 조치" />
-          <div className="advice" style={{ background: `${advice.color}0D`, border: `1px solid ${advice.color}33`, color: "#C1CEE2" }}>
+          <div className="advice" style={{ background: `${advice.color}0D`, border: `1px solid ${advice.color}33`, color: "var(--ink2)" }}>
             <span className="t" style={{ color: advice.color }}>{advice.title}</span>{advice.body}
           </div>
           {f.state === "unresolved" || f.state === "regressed" ? (

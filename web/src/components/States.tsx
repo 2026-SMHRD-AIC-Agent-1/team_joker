@@ -1,6 +1,7 @@
 // 빈 상태 · 실패 · 서버 연결 끊김. ★ 실패는 '무엇이 / 왜 / 지금 뭘 하면 되나' 를 전부 말한다.
 // ★ 예외 원문을 화면에 싣지 않는다(내부 주소가 섞여 온다). 문구는 여기 고정한다.
 import type { ReactNode } from "react";
+import { FINDING_META } from "../lib/meta";
 
 export function EmptyState({ icon, title, why, action }: {
   icon: string; title: string; why: ReactNode; action?: ReactNode;
@@ -21,7 +22,7 @@ export function Failure({ icon, title, why, actions, code, runId, tone = "error"
   icon: string; title: string; why: ReactNode; actions: ReactNode[];
   code?: string; runId?: string | null; tone?: "error" | "warn";
 }) {
-  const color = tone === "warn" ? "#F3C571" : "#FF91A4";
+  const color = tone === "warn" ? FINDING_META.unjudged.color : FINDING_META.unresolved.color;
   const meta = [code ? `code ${code}` : "", runId ? `run ${runId}` : ""].filter(Boolean).join(" · ");
   return (
     <div className="card" role="alert" style={{ borderColor: `${color}33`, background: `${color}0A` }}>

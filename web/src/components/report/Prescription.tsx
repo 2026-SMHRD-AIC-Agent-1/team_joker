@@ -8,6 +8,7 @@ import { CopyButton } from "../CopyButton";
 import { Section, SubSection } from "../Section";
 import { Gate } from "./Gate";
 import { FilterLayerDetail } from "./Layers";
+import { FINDING_META, NEUTRAL } from "../../lib/meta";
 
 function DiffView({ rep, gated }: { rep: Report; gated: Gated }) {
   const original = rep.original_prompt;
@@ -27,9 +28,9 @@ function DiffView({ rep, gated }: { rep: Report; gated: Gated }) {
         <>
           <details className="xp"><summary>원본 · 보강안 줄 단위 비교</summary><div className="xp-body">
           <div className="diff-legend">
-            <span><b style={{ color: "#6BD8AD" }}>＋</b> 보강안에 추가된 줄</span>
-            <span><b style={{ color: "#FF91A4" }}>−</b> 원본에서 빠진 줄</span>
-            <span><b style={{ color: "#9EAFCA" }}>=</b> 그대로 유지된 줄</span>
+            <span><b style={{ color: FINDING_META.resolved.color }}>＋</b> 보강안에 추가된 줄</span>
+            <span><b style={{ color: FINDING_META.unresolved.color }}>−</b> 원본에서 빠진 줄</span>
+            <span><b style={{ color: NEUTRAL }}>=</b> 그대로 유지된 줄</span>
           </div>
           <div className="diff" data-testid="diff">
             {diffLines(original, patched).map((r, i) => (

@@ -12,6 +12,7 @@ import { Failure, ServerDown } from "../components/States";
 import { useHealth } from "../hooks/useHealth";
 import { DETECT_EXAMPLES } from "../lib/examples";
 import type { DetectPrefill } from "../lib/examples";
+import { VERDICT_COLOR } from "../lib/meta";
 
 export function flagList(flags: DetectResult["rule_flags"] | undefined | null): string[] {
   if (!flags) return [];
@@ -23,7 +24,7 @@ export function DetectionCard({ d }: { d: DetectResult }) {
   const score = d.score ?? 0;
   const thr = d.threshold ?? 0.5;
   const flags = flagList(d.rule_flags);
-  const color = inj ? "#FF91A4" : "#6BD8AD";
+  const color = inj ? VERDICT_COLOR.leak : VERDICT_COLOR.block;
   return (
     <div data-testid="detection">
       <div className="card" style={{ borderColor: `${color}33`, background: `${color}0A` }}>

@@ -10,10 +10,11 @@ import { verdictLine } from "../../lib/findings";
 import { FINDING_META } from "../../lib/meta";
 import { Section } from "../Section";
 import { Gate } from "./Gate";
+import { NEUTRAL, verdictColor } from "../../lib/meta";
 
 export function VerdictBadge({ r }: { r: Attempt }) {
-  const [color, text] = r.verdict === "leak" ? ["#FF91A4", "유출"]
-    : r.verdict === "block" ? ["#6BD8AD", "차단"] : ["#F3C571", "판정 불가"];
+  const [color, text] = [verdictColor(r.verdict),
+    r.verdict === "leak" ? "유출" : r.verdict === "block" ? "차단" : "판정 불가"];
   return <span className="badge" style={{ color }}><i style={{ background: color }} />{text}</span>;
 }
 
@@ -23,11 +24,11 @@ export function ResponseBlock({ r, label, verdict = true }: { r: Attempt | null 
     return (
       <div>
         <div className="resp-h">{label}</div>
-        <div className="resp" style={{ color: "#9EAFCA" }}>이 라운드는 실행되지 않았습니다.</div>
+        <div className="resp" style={{ color: NEUTRAL }}>이 라운드는 실행되지 않았습니다.</div>
       </div>
     );
   }
-  const color = r.verdict === "leak" ? "#FF91A4" : r.verdict === "block" ? "#6BD8AD" : "#F3C571";
+  const color = verdictColor(r.verdict);
   const body = (r.evidence_excerpt || r.response_excerpt || "").trim() || "(응답 없음)";
   return (
     <div>

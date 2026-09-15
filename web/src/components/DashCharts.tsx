@@ -26,7 +26,7 @@ export function FindingsDonut({ runs }: { runs: RunRow[] }) {
       <div className="cc-t">발견 항목 상태 분포</div>
       <div className="donut-wrap">
         <svg viewBox="0 0 140 140" className="donut" role="img" aria-label={`발견 항목 ${total}건의 상태 분포`}>
-          <circle cx="70" cy="70" r={R} fill="none" stroke="#1a2436" strokeWidth="18" />
+          <circle cx="70" cy="70" r={R} fill="none" stroke="#E6EBF3" strokeWidth="18" />
           {counts.filter((c) => c.n).map((c) => {
             const len = (c.n / total) * C;
             const el = <circle key={c.key} cx="70" cy="70" r={R} fill="none" stroke={c.color} strokeWidth="18"
