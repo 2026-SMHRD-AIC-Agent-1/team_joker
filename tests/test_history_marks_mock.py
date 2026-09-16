@@ -40,5 +40,6 @@ def test_list_runs_exposes_backend(tmp_path):
 
 def test_ui_marks_mock_rows():
     from pathlib import Path
-    src = (Path(__file__).resolve().parents[1] / "ui" / "streamlit_app.py").read_text(encoding="utf-8")
-    assert '"backend"' in src and "mock(가짜)" in src, "이력 화면이 mock 을 표시해야 한다"
+    src = (Path(__file__).resolve().parents[1] / "web" / "src"
+           / "components" / "RunTable.tsx").read_text(encoding="utf-8")
+    assert "isMock(" in src and "예시 결과" in src, "이력 화면이 mock 행을 표시해야 한다"

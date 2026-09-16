@@ -108,7 +108,7 @@
 
 ## 6. Component architecture
 
-**파일은 나누지 않는다.** `tests/` 3개가 `ui/streamlit_app.py` **소스 문자열**을 직접 검사하고
+**파일은 나누지 않는다.**(당시 Streamlit 화면 기준 결정) `tests/` 3개가 `ui/streamlit_app.py` **소스 문자열**을 직접 검사하고
 (`test_ui_marks_mock_rows` · `test_ui_does_not_blur_on_the_client` · `test_ui_does_not_print_raw_exceptions`),
 `test_import_boundaries` 는 `ui/*.py` 전체를 훑는다. 12일 남은 시점에 파일 분리는 테스트 리스크만 늘린다.
 대신 파일 안을 **6개 층**으로 고정하고 각 층 위에 구획 주석을 둔다:

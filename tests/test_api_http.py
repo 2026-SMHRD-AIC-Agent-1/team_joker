@@ -14,7 +14,7 @@ API 테스트가 조용히 사라지면 IDOR 회귀를 아무도 못 잡는다(S
     즉 run_id 만 알면 다른 방문자의 시스템 지시문·보호 자산 이름이 그대로 보였다.
     회원 자원에만 IDOR 을 막고 비회원 자원에는 안 막은 셈이라, 이건 호환이 아니라 구멍이다.
   · `POST /api/diagnose` — 비회원 경로에 게스트 세션을 요구한다(무료 1회 정책의 전제).
-  두 변경 모두 화면(ui/streamlit_app.py)이 X-Guest-Token 을 붙이는 것으로 흡수된다.
+  두 변경 모두 화면(web/src/api/client.ts)이 X-Guest-Token 을 붙이는 것으로 흡수된다.
 """
 
 from __future__ import annotations

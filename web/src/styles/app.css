@@ -1,6 +1,7 @@
 /* Chat Shield core components. Light color tokens shared by all web screens. */
 
 :root{
+  color-scheme:light;
   /* 밝은 표면 + 어두운 글자. 값은 전부 흰 배경(#FFFFFF)·페이지 배경(#F7F8FB) 기준으로
      대비를 재서 골랐다 — 본문·상태색 4.5:1, 막대·컨트롤 테두리 3:1 (WCAG AA).
      ★ 상태 색을 어두운 테마의 파스텔에서 그대로 가져오면 안 된다. 예전 '해결됨' 민트
@@ -14,9 +15,12 @@
   --brand:#2F55CC; --brand-h:#1E3FA8; --brand-2:#2F55CC;
   --brand-soft:rgba(40,93,221,.06); --brand-line:rgba(40,93,221,.22);
   --ok:#0A7A53; --warn:#9A5B00; --danger:#C62A41;
-  --r-s:8px; --r-m:10px; --r-l:12px;
+  /* ★ product.css 가 :root 를 다시 선언해 이 셋을 덮고 있었다(0916 통합).
+     렌더되던 값(14/18px · #2F55CC40)을 여기로 옮기고 그쪽 :root 는 지웠다 —
+     토큰의 정의 지점은 이 파일 하나다. */
+  --r-s:8px; --r-m:14px; --r-l:18px;
   --sh-1:0 1px 2px rgba(20,40,70,.06); --sh-2:0 12px 28px rgba(20,40,70,.10);
-  --focus:0 0 0 3px rgba(40,93,221,.28);
+  --focus:0 0 0 3px #2F55CC40;
   --sidebar:252px;
 }
 
@@ -54,8 +58,6 @@ pre code{ background:none; padding:0; }
       transition:background .16s ease, border-color .16s ease, color .16s ease;
       border:1px solid var(--line); background:transparent; color:var(--ink2); }
 .btn:hover{ border-color:var(--line); background:var(--surface-2); color:var(--ink); text-decoration:none; }
-.btn-primary{ background:var(--brand); border-color:var(--brand); color:#fff; }
-.btn-primary:hover{ background:var(--brand-h); border-color:var(--brand-h); color:#fff; }
 .btn-block{ width:100%; }
 .btn-link{ height:auto; padding:0; border:none; background:none; color:var(--brand-2);
            font-size:.82rem; }
@@ -75,7 +77,6 @@ pre code{ background:none; padding:0; }
   width:100%; font:inherit; font-size:.95rem; color:var(--ink); background:var(--surface);
   border:1px solid var(--field-line); border-radius:var(--r-s); padding:10px 12px; line-height:1.6; }
 .input:focus, .textarea:focus, .select:focus{ outline:none; border-color:var(--brand); box-shadow:var(--focus); }
-.input::placeholder, .textarea::placeholder{ color:var(--muted2); }
 .textarea{ resize:vertical; min-height:180px; line-height:1.85; }
 .form-error{ border:1px solid rgba(181,54,78,.3); background:rgba(181,54,78,.06); color:var(--danger);
              border-radius:var(--r-s); padding:10px 12px; font-size:.86rem; margin:4px 0 12px; }
@@ -132,7 +133,6 @@ details.xp > .xp-body{ padding:4px 22px 24px; }
 .status-chip i{ width:8px; height:8px; border-radius:50%; display:inline-block; flex:none; }
 .main{ min-width:0; }
 .main-inner{ max-width:1120px; margin:0 auto; padding:44px 40px 80px; }
-.main-narrow{ max-width:960px; margin:0 auto; padding:48px 24px; }
 .pagehead-row{ display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; }
 .pagehead-actions{ display:flex; gap:8px; flex-wrap:wrap; }
 .pagehead-actions .btn{ min-width:150px; }
@@ -233,7 +233,6 @@ details.xp > .xp-body{ padding:4px 22px 24px; }
 .meta .v{color:var(--ink2); font-weight:600; text-align:right;
           font-variant-numeric:tabular-nums;}
 .col-h{font-size:.75rem; font-weight:700; color:var(--muted2); letter-spacing:.01em;}
-.cell-sub{font-size:.83rem; color:var(--muted2);}
 .tag-mock{display:inline-block; font-size:.68rem; font-weight:700; color:var(--warn);
            background:rgba(240,179,90,.12); border:1px solid rgba(240,179,90,.32);
            border-radius:5px; padding:1px 5px; margin-left:4px;}
@@ -442,7 +441,6 @@ details.xp > .xp-body{ padding:4px 22px 24px; }
 }
 .h-page{font-size:1.65rem;letter-spacing:-.04em;}
 .h-sec{font-size:1.2rem;margin-top:32px;}
-.rule{margin:16px 0 28px;}
 .report-hero{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:32px 36px;margin:8px 0 12px;}
 .report-eyebrow{font-size:.8rem;font-weight:700;letter-spacing:.08em;color:var(--brand);margin-bottom:14px;}
 .report-title{font-size:2rem;line-height:1.35;font-weight:760;letter-spacing:-.045em;color:var(--ink);max-width:820px;}
@@ -578,7 +576,6 @@ details.fold > :last-child{padding-bottom:12px;}
 }
 /* ── React 2단계: 새 진단 · 진행 · 리포트 · 탐지 ─────────────────
    ★ Streamlit 에서는 st.columns·st.pills 가 하던 배치를 순수 CSS 로 다시 만든다. 새 색은 만들지 않는다(토큰만). */
-.btn-danger{ background:var(--danger); border-color:var(--danger); color:#fff; }
 .btn-danger:hover{ background:#A81F35; border-color:#A81F35; color:#fff; }
 .btn-row{ display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
 .cta-row{ display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin:16px 0 8px; }

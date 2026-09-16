@@ -21,7 +21,13 @@ from joker.providers.budget import BudgetExceeded
 from joker.providers.openai_compat import ProviderError
 
 DATA = str(Path(__file__).parent.parent / "data" / "attacks")
-UI = Path(__file__).resolve().parents[1] / "ui" / "streamlit_app.py"
+WEB_SRC = Path(__file__).resolve().parents[1] / "web" / "src"
+
+
+def _ui_src() -> str:
+    """화면 코드 전체(테스트 파일 제외). 실패 분기가 어느 컴포넌트로 옮겨가도 따라간다."""
+    return "\n".join(f.read_text(encoding="utf-8")
+                     for f in sorted(WEB_SRC.rglob("*.ts*")) if ".test." not in f.name)
 
 
 # ── ① 오류 분류 ─────────────────────────────────────────────
@@ -80,32 +86,51 @@ def test_prepare_passes_with_default_budget():
     "target_unreachable",     # 대상 모델 연결 실패
     "budget_exceeded",        # 호출 상한 도달(실행 중)
     "budget_too_low",         # 호출 상한 부족(시작 전)
-    "detector_unavailable",   # 탐지 모델 없음
 ])
 def test_ui_handles_every_failure_code(code):
-    assert code in UI.read_text(encoding="utf-8"), f"화면에 {code} 분기가 없다"
+    assert code in _ui_src(), f"화면에 {code} 분기가 없다"
+
+
+@pytest.mark.boundary
+def test_ui_blocks_missing_detector_before_the_button():
+    """detector_unavailable(503) 은 버튼을 누른 뒤 알리면 늦다 — 화면은 health 로 미리 막는다.
+
+    그래서 이 경로만 code 문자열이 아니라 detector_ready 분기로 검사한다."""
+    src = _ui_src()
+    assert "detector_ready" in src, "탐지 모델 없음을 화면이 미리 알리지 않는다"
+    assert "메시지 검사를 사용할 수 없습니다" in src
 
 
 @pytest.mark.boundary
 def test_ui_has_a_single_failure_component():
     """실패 화면이 제각각이면 사용자는 매번 새로 읽어야 한다. 카드 하나로 통일한다."""
-    src = UI.read_text(encoding="utf-8")
-    assert "def render_failure(" in src and "def render_server_down(" in src
+    src = (WEB_SRC / "components" / "States.tsx").read_text(encoding="utf-8")
+    assert "export function Failure(" in src and "export function ServerDown(" in src
     assert "지금 할 수 있는 것" in src, "조치가 없는 오류 화면은 막다른 길이다"
 
 
 @pytest.mark.boundary
 def test_ui_does_not_print_raw_exceptions():
-    """예외 문자열을 화면에 그대로 찍으면 base_url 이 노출된다."""
-    src = UI.read_text(encoding="utf-8")
-    for banned in ('st.error(f"요청 실패: {e}")',
-                   'st.error(f"결과를 못 불러왔습니다: {e}")',
-                   'st.error(f"탐지 실패: {e}")'):
-        assert banned not in src, f"예외 원문을 화면에 찍는 코드가 남아 있다: {banned}"
+    """예외 문자열을 화면에 그대로 찍으면 base_url 이 노출된다.
+
+    ★ 화면이 쓰는 message 는 ApiError 의 것 — 서버가 classify_error 에서 고정한 문구다.
+    금지 대상은 그게 아니라 **잡은 예외를 그대로 문자열로 만드는 것**이다(여기에 base_url 이 섞인다).
+    """
+    for f in sorted(WEB_SRC.rglob("*.ts*")):
+        if ".test." in f.name:
+            continue
+        src = f.read_text(encoding="utf-8")
+        for banned in ("String(e)", "String(err)", "${e}", "${err}", ".stack", "JSON.stringify(e"):
+            assert banned not in src, f"{f.name}: 예외 원문을 화면에 싣는 코드({banned})"
+        # .message 를 그리는 파일은 그 값이 ApiError 에서 온 것임을 타입으로 좁혀야 한다.
+        if ".message" in src:
+            assert "ApiError" in src, f"{f.name}: ApiError 로 좁히지 않은 예외의 message 를 쓰고 있다"
 
 
 @pytest.mark.boundary
 def test_inconclusive_never_claims_safe():
     """★ 함정② — '진단 불가' 를 '안전' 으로 그리면 이 도구에서 가장 위험한 거짓말이 된다."""
-    src = UI.read_text(encoding="utf-8")
+    src = (WEB_SRC / "components" / "report" / "Outcomes.tsx").read_text(encoding="utf-8")
     assert "‘안전함’ 을 뜻하지 않습니다" in src
+    for banned in ("grade", "asr"):
+        assert banned not in src, f"진단 불가 화면이 {banned} 를 그리면 실행 안 한 진단에 점수를 주는 것이다"

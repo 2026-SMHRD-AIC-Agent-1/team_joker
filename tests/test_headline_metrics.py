@@ -47,9 +47,25 @@ def test_limitations_are_present():
 
 
 def test_ui_reads_the_same_path():
-    src = (REPO / "ui" / "streamlit_app.py").read_text(encoding="utf-8")
+    src = (REPO / "web" / "src" / "evidence" / "metrics.ts").read_text(encoding="utf-8")
     assert "headline_metrics.json" in src, "UI 가 다른 경로를 보면 화면과 근거가 어긋난다"
-    assert "import joker" not in src and "from joker" not in src, "화면은 엔진을 import 하지 않는다"
+
+
+def test_ladder_numbers_match_the_source_document():
+    """방어 사다리 네 칸의 수치가 근거 문서의 held-out 표에 실제로 있는가.
+
+    ★ 화면에 의존하지 않는 데이터 검사다(옛 tests/test_tool_evidence.py 에서 옮겨 왔다).
+      칸 하나를 빼면 '탐지기만' 이 '보강만' 보다 낮은 사실이 가려져 사다리처럼 읽힌다 —
+      그래서 네 칸 · 그 순서를 여기서 못 박는다.
+    """
+    import re
+    dm = next(x for x in _load()["metrics"] if x["key"] == "defense_matrix")
+    assert [s["label"] for s in dm["steps"]] == ["방어 없음", "지시문 보강만", "탐지기만", "둘 다"]
+    doc = (REPO / dm["source"]).read_text(encoding="utf-8")
+    held = doc[doc.index("## held-out"):doc.index("## 학습에 쓴 시드")]
+    for step in dm["steps"]:
+        k, n = re.search(r"(\d+)/(\d+)", step["detail"]).groups()
+        assert f"({k}/{n}," in held, f"{step['label']} 의 {k}/{n} 이 근거 문서 held-out 표에 없다"
 
 
 def test_asr_is_paired_with_benign_pass():

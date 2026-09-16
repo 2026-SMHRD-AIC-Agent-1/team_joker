@@ -7,7 +7,7 @@ import { EvidenceCards } from "./Evidence";
 import { Findings } from "./Findings";
 import { GATE_DECOY } from "./Gate";
 import { metric } from "../../evidence/metrics";
-import { FilterLayerDetail } from "./Layers";
+import { FilterLayerDetail, Ladder } from "./Layers";
 import { Inconclusive } from "./Outcomes";
 import { Prescription } from "./Prescription";
 import { ProgressView, stageRows } from "./Progress";
@@ -140,5 +140,18 @@ describe("JOKER-KO 사후 검사", () => {
     cleanup();
     render(<FilterLayerDetail rep={rep({ ...base, status: "not_recorded" })} />);
     expect(screen.queryByTestId("training-overlap")).toBeNull();
+  });
+});
+
+// ★ 옛 tests/test_tool_evidence.py(Streamlit)에서 옮겨 온 가드.
+//   네 칸을 다 그리거나 아예 안 그리거나 — 한 칸을 빼면 '탐지기만' 이 '보강만' 보다 낮은 사실이
+//   가려져 사다리처럼 읽힌다(수치 자체는 tests/test_headline_metrics.py 가 근거 문서와 대조한다).
+describe("방어 사다리", () => {
+  it("네 칸을 전부 그리고, 이 진단 결과가 아니라는 단서를 함께 낸다", () => {
+    render(<Ladder />);
+    const steps = metric("defense_matrix")?.steps ?? [];
+    expect(steps).toHaveLength(4);
+    for (const s of steps) expect(screen.getByText(s.label)).toBeTruthy();
+    expect(screen.getByTestId("ladder").textContent).toContain("별도 시험");
   });
 });
