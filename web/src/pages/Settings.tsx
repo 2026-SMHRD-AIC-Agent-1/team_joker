@@ -69,7 +69,7 @@ function PasswordForm() {
       </div>
       {error ? <div className="form-error" role="alert">{error}</div> : null}
       {done ? <div className="checkline" role="status">비밀번호를 바꿨습니다. <b>다른 기기·탭의 로그인은 모두 해제</b>되고 이 화면만 유지됩니다.</div> : null}
-      <p className="fine">현재 비밀번호를 다시 확인합니다 — 자리를 비운 사이 남이 계정을 잠그지 못하게 하기 위해서입니다.</p>
+      <p className="fine">본인 확인을 위해 현재 비밀번호가 필요합니다.</p>
       <button type="submit" className="btn btn-primary" disabled={busy}>{busy ? "바꾸는 중…" : "비밀번호 변경"}</button>
     </form>
   );
@@ -132,15 +132,15 @@ export function Settings() {
   const { logout } = useAuth();
   const [busy, setBusy] = useState(false);
   return <>
-    <PageHeader title="설정" desc="엔진 연결 상태, 사용 가능한 모델과 계정을 확인하세요.">
+    <PageHeader title="설정" desc="검사 서비스 상태, AI 모델과 내 계정을 확인하세요.">
       <button className="btn" disabled={health.loading || models.loading} onClick={() => { health.reload(); models.reload(); }}>연결 다시 확인</button>
     </PageHeader>
-    <Section title="엔진 연결" />
-    <p className="fine">이 웹사이트의 API에 연결됩니다. 서버 주소는 실행 환경에서 설정합니다.</p>
+    <Section title="서비스 연결 상태" />
+    <p className="fine">검사 서비스를 사용할 수 있는지 확인합니다.</p>
     {health.loading ? <Skeleton rows={3} /> : health.error ? <ServerDown /> : health.data ? <div className="card">
-      <p><b>엔진 정상</b> · {health.data.profile}</p>
+      <p><b>서버 연결됨</b> · {health.data.profile}</p>
       {health.data.profile === "mock" ? <div className="alert alert-warn">mock 응답은 실제 측정값이 아닙니다. 인용하지 마세요.</div> : null}
-      <p>공격 시드 {health.data.corpus_loaded ?? "—"}개 · 탐지기 {health.data.detector_ready ? "준비됨" : "미준비"} · LangGraph {health.data.langgraph ? "준비됨" : "미준비"}</p>
+      <p>시험용 공격 {health.data.corpus_loaded ?? "—"}개 · 메시지 검사 {health.data.detector_ready ? "준비됨" : "미준비"} · 진단 기능 {health.data.langgraph ? "준비됨" : "미준비"}</p>
     </div> : null}
     <Section title="진단 대상 모델" />
     {models.loading ? <Skeleton rows={3} /> : models.error ? <div className="alert alert-warn">모델 목록을 불러오지 못했습니다. 연결을 다시 확인하세요.</div> : models.data?.presets.map(p => <div className="card" key={p.id} style={{ marginBottom: 12 }}>
@@ -157,6 +157,6 @@ export function Settings() {
       <PasswordForm />
       <Section title="계정 삭제" />
       <DeleteAccount email={email} />
-    </> : <div className="card"><p>비회원입니다. 로그인하면 진단 이력과 보강안 전문을 볼 수 있습니다.</p><Link className="btn" to="/login">로그인 · 회원가입</Link></div>}
+    </> : <div className="card"><p>비회원입니다. 로그인하면 진단 이력과 수정안 전문을 볼 수 있습니다.</p><Link className="btn" to="/login">로그인 · 회원가입</Link></div>}
   </>;
 }

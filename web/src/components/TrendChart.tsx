@@ -1,4 +1,4 @@
-// 내 진단들의 보강 전/후 공격 성공률 추이.
+// 내 진단들의 수정 전/후 공격 성공률 추이.
 // ★ mock·비교 불가 진단은 뺀다. ★ 3회 미만이면 그리지 않는다(점 두 개짜리 추이선은 아무 말도 안 한다).
 // ★ 0/50/100% 기준선과 계열 이름을 선 끝에 직접 적는다(색만으로 두 선을 구분하게 만들지 않는다).
 import type { RunRow } from "../api/types";
@@ -13,7 +13,7 @@ export function trendPoints(runs: RunRow[]): RunRow[] {
 export function TrendChart({ runs }: { runs: RunRow[] }) {
   const pts = trendPoints(runs);
   if (pts.length < 3) return null;
-  // ★ pr(오른쪽 여백)은 계열 라벨("59% 보강 전" ≈ 80px)이 들어갈 만큼 둬야 한다.
+  // ★ pr(오른쪽 여백)은 계열 라벨("59% 수정 전" ≈ 80px)이 들어갈 만큼 둬야 한다.
   //   66 이면 라벨이 viewBox 밖으로 나가 잘렸다(0914).
   const w = 1200, h = 190, pl = 52, pr = 104, pt = 16, pb = 30;
   const ix = w - pl - pr, iy = h - pt - pb, step = ix / (pts.length - 1);
@@ -33,15 +33,15 @@ export function TrendChart({ runs }: { runs: RunRow[] }) {
   return (
     <div className="card" style={{ padding: "16px 20px" }}>
       <svg viewBox={`0 0 ${w} ${h}`} style={{ width: "100%", height: "auto", display: "block" }} role="img"
-           aria-label="보강 전·후 공격 성공률 추이">
+           aria-label="수정 전후 정보 유출 비율">
         {[0, 0.5, 1].map((v) => (
           <g key={v}>
             <line x1={pl} y1={y(v)} x2={w - pr} y2={y(v)} stroke="#DCE3EE" />
             <text x={pl - 8} y={y(v) + 3.5} textAnchor="end" fontSize={13} fill="#5A6478">{v * 100}%</text>
           </g>
         ))}
-        {series("asr_before", "#8792A6", 1.6, "보강 전")}
-        {series("asr_after", "#2F55CC", 3.0, "보강 후")}
+        {series("asr_before", "#8792A6", 1.6, "수정 전")}
+        {series("asr_after", "#2F55CC", 3.0, "수정 후")}
         <text x={pl} y={h - 6} fontSize={13} fill="#5A6478">오래된 진단</text>
         <text x={w - pr} y={h - 6} fontSize={13} fill="#5A6478" textAnchor="end">최근 진단</text>
       </svg>

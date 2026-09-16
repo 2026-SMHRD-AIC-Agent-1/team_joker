@@ -25,7 +25,7 @@ const guestReport = {
   representative_findings: [{ attack_id: "AUTH-01", state: "unresolved", title: "관리자 코드 유출이 관측됐습니다", technique_ko: "권위", locked: true }],
 } as unknown as Report;
 const gated: Gated = { is_gated: true, patched_prompt_total_lines: 12, patched_prompt_hidden_lines: 10,
-  attempts_total: 6, attempts_hidden: 6, representative_locked: 1, unlock: "무료 회원가입 시 전체 보강안과 시도별 상세를 볼 수 있습니다." };
+  attempts_total: 6, attempts_hidden: 6, representative_locked: 1, unlock: "무료 회원가입 시 전체 수정안과 시도별 상세를 볼 수 있습니다." };
 
 describe("비회원 게이팅", () => {
   it("잠긴 대표 카드는 '실행되지 않았습니다' 라고 거짓말하지 않고, 잠겼다고 말한다", () => {
@@ -40,15 +40,15 @@ describe("비회원 게이팅", () => {
     const blurred = [...container.querySelectorAll(".gate-blur .gb-l")].map((n) => n.textContent);
     expect(blurred).toEqual([...GATE_DECOY.attempts]);
     expect(screen.getByText(/화면이 만든 예시 문장/)).toBeTruthy();
-    expect(screen.getByText(/애초에 담기지 않습니다/)).toBeTruthy();
+    expect(screen.getByText(/실제 상세 내용은 가입 후 불러옵니다/)).toBeTruthy();
   });
 
-  it("보강안: 앞 2줄만, 전문 복사 버튼 없음, 원본 비교는 잠김 안내", () => {
+  it("수정안: 앞 2줄만, 전문 복사 버튼 없음, 원본 비교는 잠김 안내", () => {
     render(<Prescription rep={guestReport} gated={gated} onSignup={() => {}} />);
-    expect(screen.queryByRole("button", { name: "보강안 전문 복사" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "수정안 전체 복사" })).toBeNull();
     expect(screen.getByTestId("patched").textContent).toBe("첫 줄\n둘째 줄");
     expect(screen.getByText("10줄")).toBeTruthy();
-    expect(screen.getByText(/원본은 비회원 응답에 담기지 않으므로/)).toBeTruthy();
+    expect(screen.getByText(/후 변경된 내용을 확인할 수 있습니다/)).toBeTruthy();
     expect(screen.getByText(/정상 업무까지 거절하지 않는지도 확인해야 합니다/)).toBeTruthy();
   });
 
@@ -88,14 +88,14 @@ describe("진행 단계 — JOKER-KO 줄 고정 · 판정 구간", () => {
   it("재진단 중에도 JOKER-KO 줄이 대기로 미리 보인다", () => {
     const rows = stageRows(at(3, { stage_done: 20, stage_total: 57 }));
     expect(rows.map((r) => r.key)).toEqual(STAGES.map((s) => s.key));
-    expect(rows[4]).toMatchObject({ label: "JOKER-KO 추가 검사", state: "todo", detail: "대기" });
+    expect(rows[4]).toMatchObject({ label: "남은 공격 추가 검사", state: "todo", detail: "대기" });
   });
 
   it("공격을 다 던진 뒤에는 '57/57' 대신 판정 중이라고 말한다", () => {
     const p = at(3, { phase: "judge", stage_total: 57 });
     expect(stageRows(p)[3].detail).toBe("응답 57건 판정 중");
     render(<ProgressView progress={p} startedAt={Date.now()} mode="full" />);
-    expect(screen.getByRole("status").textContent).toContain("재진단 응답을 판정하고 있어요");
+    expect(screen.getByRole("status").textContent).toContain("다시 시험 응답을 판정하고 있어요");
     expect(screen.getByTestId("stages").textContent).not.toContain("57/57");
   });
 
@@ -116,9 +116,9 @@ describe("진행 단계 — JOKER-KO 줄 고정 · 판정 구간", () => {
 it("JOKER-KO 안내는 서버 단계에만 반응하고 경과 시간을 유지한다", () => {
   const { rerender } = render(<ProgressView progress={{stage_index:0, queued:false, stages:[{key:'detector',label:'추가 검사'}]}} startedAt={Date.now()-5000} mode="screening" />);
   expect(screen.getByRole('timer').textContent).toBe('0:05');
-  expect(screen.getByRole('status').textContent).toContain('JOKER-KO로 추가 탐지 여부를 확인하고 있어요');
+  expect(screen.getByRole('status').textContent).toContain('남은 공격을 찾아낼 수 있는지 확인하고 있어요');
   rerender(<ProgressView progress={{stage_index:0, queued:false, stages:[{key:'report',label:'결과 정리'}]}} startedAt={Date.now()-5000} mode="screening" />);
-  expect(screen.getByRole('status').textContent).not.toContain('JOKER-KO');
+  expect(screen.getByRole('status').textContent).not.toContain('남은 공격을 찾아낼 수 있는지');
   expect(screen.getByRole('timer')).toBeTruthy();
 });
 

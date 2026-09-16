@@ -9,7 +9,7 @@ afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 it("첫 화면은 로그인 폼 대신 서비스 소개와 무료 진단 링크를 보여준다", () => {
   render(<MemoryRouter><Landing /></MemoryRouter>);
-  expect(screen.getByRole("heading", { level: 1 }).textContent).toContain("지켜야 할 정보");
+  expect(screen.getByRole("heading", { level: 1 }).textContent).toContain("내 챗봇의 정보");
   expect(screen.queryByLabelText("비밀번호")).toBeNull();
   expect(screen.getByRole("link", { name: "무료로 진단 시작하기 →" }).getAttribute("href")).toBe("/diagnose");
   // ★ 내부 이동에 ↗(외부 링크 관용 기호)를 쓰지 않는다
@@ -31,10 +31,10 @@ it("결과는 한 구역만 표시하고 키보드로 구역을 이동한다", (
   render(<MemoryRouter><ReportBody run={run} onSignup={() => {}} focusFindings={false} /></MemoryRouter>);
   expect(screen.getByTestId("hero")).toBeTruthy();
   expect(screen.queryByTestId("patched")).toBeNull();
-  fireEvent.click(screen.getByRole("tab", { name: /지시문 보강안/ }));
+  fireEvent.click(screen.getByRole("tab", { name: /규칙 수정안/ }));
   expect(screen.getByTestId("patched").textContent).toBe("TEST PATCH CONTENT");
   expect(screen.queryByTestId("hero")).toBeNull();
-  fireEvent.keyDown(screen.getByRole("tab", { name: /지시문 보강안/ }), { key: "Home" });
+  fireEvent.keyDown(screen.getByRole("tab", { name: /규칙 수정안/ }), { key: "Home" });
   expect(screen.getByRole("tab", { name: /결과 요약/ }).getAttribute("aria-selected")).toBe("true");
 });
 
@@ -49,8 +49,8 @@ it.each([
   ['no_targets', '추가 검사 대상이 없습니다.', null, null],
   ['unavailable', '규칙 검사 결과만 제공합니다.', null, null],
   ['failed', '규칙 검사 결과만 제공합니다.', null, null],
-  ['not_recorded', 'ML 검사 기록 없음', null, null],
-] as const)('보강안 탭에서 저장된 필터 상태 %s를 렌더한다', (status, message, ml, missed) => {
+  ['not_recorded', 'AI 검사 기록 없음', null, null],
+] as const)('수정안 탭에서 저장된 필터 상태 %s를 렌더한다', (status, message, ml, missed) => {
   const fixture = structuredClone(run);
   fixture.report!.filter_recommendation = {residual: status === 'no_targets' ? 0 : 8, rule_blockable:2,
     status, ml_additional:ml, undetected:missed, detected_total:6, checked:status === 'completed' ? 8 : 0,

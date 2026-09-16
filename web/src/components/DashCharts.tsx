@@ -11,7 +11,7 @@ import { FINDING_META, GRADE_COLOR } from "../lib/meta";
 
 const GRADES = ["A", "B", "C", "D", "F"] as const;
 
-/** 발견 항목 상태 분포 — 여섯 상태를 전부 그린다(0건도 범례에 남긴다). */
+/** 시험한 공격의 결과 — 여섯 상태를 전부 그린다(0건도 범례에 남긴다). */
 export function FindingsDonut({ runs }: { runs: RunRow[] }) {
   const counts = FINDING_ORDER.map((k) => ({
     key: k, name: FINDING_META[k].name, color: FINDING_META[k].color,
@@ -23,7 +23,7 @@ export function FindingsDonut({ runs }: { runs: RunRow[] }) {
   let acc = 0;
   return (
     <div className="chart-card">
-      <div className="cc-t">발견 항목 상태 분포</div>
+      <div className="cc-t">시험한 공격의 결과</div>
       <div className="donut-wrap">
         <svg viewBox="0 0 140 140" className="donut" role="img" aria-label={`발견 항목 ${total}건의 상태 분포`}>
           <circle cx="70" cy="70" r={R} fill="none" stroke="#E6EBF3" strokeWidth="18" />
@@ -60,7 +60,7 @@ export function GradeBars({ runs }: { runs: RunRow[] }) {
   if (!rows.some((r) => r.n) && !held) return null;
   return (
     <div className="chart-card">
-      <div className="cc-t">보강안 재시험 등급 분포</div>
+      <div className="cc-t">수정 후 진단 등급</div>
       <div className="hbars">
         {rows.map(({ g, n }) => (
           <div className="hb" key={g}>
@@ -70,12 +70,12 @@ export function GradeBars({ runs }: { runs: RunRow[] }) {
           </div>
         ))}
       </div>
-      {held ? <p className="cc-note">등급 보류 {held}건은 위 분포에서 뺐습니다 — 판정하지 못한 건을 0으로 섞지 않습니다.</p> : null}
+      {held ? <p className="cc-note">등급을 판단하지 못한 {held}건은 제외했습니다.</p> : null}
     </div>
   );
 }
 
-/** 대상 모델별 보강 후 공격 성공률 — 낮을수록 좋다. 모델마다 표본 수(n)를 함께 적는다. */
+/** AI 모델별 수정 후 유출 비율 — 낮을수록 좋다. 모델마다 표본 수(n)를 함께 적는다. */
 export function ModelBars({ runs }: { runs: RunRow[] }) {
   const by = new Map<string, number[]>();
   for (const r of runs) {
@@ -90,18 +90,18 @@ export function ModelBars({ runs }: { runs: RunRow[] }) {
   const max = Math.max(1, ...rows.map((r) => r.avg));
   return (
     <div className="chart-card">
-      <div className="cc-t">대상 모델별 보강 후 공격 성공률</div>
+      <div className="cc-t">AI 모델별 수정 후 유출 비율</div>
       <div className="vbars">
         {rows.map((r) => (
           <div className="vb" key={r.m}>
             <b className="vb-v num">{r.avg.toFixed(0)}%</b>
             <span className="vb-track"><span className="vb-fill" style={{ height: `${(r.avg / max) * 100}%` }} /></span>
             <span className="vb-l" title={r.m}>{r.m}</span>
-            <span className="vb-n">n={r.n}</span>
+            <span className="vb-n">진단 {r.n}건</span>
           </div>
         ))}
       </div>
-      <p className="cc-note">낮을수록 좋습니다. 비교 가능한 진단의 평균이며, 모델마다 표본 수가 다릅니다.</p>
+      <p className="cc-note">낮을수록 유출이 적습니다. 모델별 진단 횟수가 다른 평균값입니다.</p>
     </div>
   );
 }

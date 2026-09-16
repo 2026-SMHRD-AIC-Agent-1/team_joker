@@ -60,7 +60,7 @@ export function AuthForm({ onDone }: { onDone?: (claimed: boolean) => void }) {
       </form>
       {tab === "login" ? (
         <p className="auth-note">
-          계정이 없다면 위 <b>회원가입</b> 탭에서 30초 만에 만들 수 있습니다. 카드 정보를 받지 않습니다.
+          처음이라면 <b>회원가입</b>을 선택하세요. 카드 정보는 필요 없습니다.
         </p>
       ) : (
         <>
@@ -85,17 +85,16 @@ export function AuthPage() {
           {/* ★ 서비스 소개 문구는 첫 화면(/)에만 둔다 — 여기에 또 쓰면 같은 말을 문구만 다르게 두 번 하게 된다.
               이 화면이 답할 것은 "왜 계정이 필요한가" 하나다. */}
           <div className="input-intro">계정이 있으면<br />진단 기록이 남습니다.</div>
-          <div className="auth-desc">비회원도 무료 진단 1회는 그대로 실행됩니다. 계정은 <b>상세 증거·보강안 전문</b>을 열고,
-            지난 진단을 다시 찾아보기 위한 것입니다.</div>
+          <div className="auth-desc">무료 가입하면 <b>상세 결과와 수정안 전체</b>를 보고, 지난 진단을 다시 확인할 수 있습니다.</div>
           {[["1", "지금 실행한 진단이 그대로 열립니다", "가입 직후 방금 결과가 이어집니다 — 다시 진단하지 않아도 됩니다."],
-            ["2", "상세 증거와 보강안 전문", "공격 문구·응답 전문·원본↔보강안 비교가 열립니다."],
+            ["2", "상세 증거와 수정안 전문", "공격 문구·응답 전문·원본↔수정안 비교가 열립니다."],
             ["3", "이메일과 비밀번호만", "이름·휴대폰번호·생년월일은 수집하지 않습니다."]].map(([n, t, d]) => (
             <div className="next-action" key={n}><span className="step">{n}</span><div><b>{t}</b><p>{d}</p></div></div>
           ))}
           <p className="fine"><Link to="/">← 서비스가 무엇인지 먼저 보기</Link></p>
         </div>
         <div className="authbox">
-          <div className="auth-panel-t">진단 기록과 보강안을 이어서 보려면 로그인하세요.</div>
+          <div className="auth-panel-t">진단 기록과 수정안을 이어서 보려면 로그인하세요.</div>
           <AuthForm onDone={(claimed) => nav(claimed && lastRunId ? `/runs/${encodeURIComponent(lastRunId)}` : "/dashboard")} />
           <div className="auth-div">또는</div>
           {lastRunId ? <Link className="btn btn-block" to={`/runs/${encodeURIComponent(lastRunId)}`}>{guest.runningRunId ? "진행 중인 진단으로 돌아가기" : "이전 진단 결과 보기"}</Link> : null}
@@ -107,11 +106,11 @@ export function AuthPage() {
             <p className="auth-note">무료 체험을 이미 사용했습니다. 위에서 <b>무료 회원가입</b>을 하면 추가 진단을 실행할 수 있고,
               이전에 체험한 결과의 상세도 함께 열립니다.</p>
           ) : (
-            <p className="auth-note">요약 결과는 바로 확인하고, <b>상세 분석과 보강안은 무료 가입 후</b> 확인할 수 있습니다.
+            <p className="auth-note">요약 결과는 바로 확인하고, <b>상세 분석과 수정안은 무료 가입 후</b> 확인할 수 있습니다.
               가입하면 방금 실행한 진단이 그대로 열립니다.</p>
           )}
           {guest.remaining === null ? (
-            <p className="fine">🎟️ 무료 체험 잔여 횟수를 확인하지 못했습니다 — API 서버가 떠 있는지 확인하세요.</p>
+            <p className="fine">🎟️ 무료 체험 잔여 횟수를 확인하지 못했습니다 — 잠시 후 다시 시도해 주세요.</p>
           ) : guest.limitNote && !exhausted ? <p className="fine">🎟️ {guest.limitNote}</p> : null}
         </div>
       </div>

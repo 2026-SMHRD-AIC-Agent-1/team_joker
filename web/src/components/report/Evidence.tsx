@@ -45,13 +45,13 @@ export function EvidenceCards({ rep, gated, onSignup }: { rep: Report; gated: Ga
     <section aria-label="발견한 문제">
       {/* ★ 구역 번호를 여기에 쓰지 않는다 — 위쪽 탭이 이미 번호를 매기고 있어 두 벌이 된다. */}
       <Section title="대표 문제"
-        desc="가장 먼저 볼 항목 최대 3개입니다. 요청과 응답을 먼저 보고, 판정 근거는 카드 안에서 펼치세요. 모든 시험 기록은 이 아래 ‘전체 발견 항목’ 에 있습니다." />
+        desc="먼저 확인할 문제입니다. 질문과 챗봇의 답변을 비교해 보세요." />
       {!cards.length ? (
         <p className="fine">대표 유출·판정 불가 항목이 없습니다. 아래 전체 시험 기록을 확인할 수 있습니다.</p>
       ) : cards.map((card, index) => {
         const locked = Boolean(card.locked);
         const advice = ADVICE[card.state];
-        const pairs: [string, Attempt | null | undefined][] = [["보강 전", card.before], ["보강 후", card.after]];
+        const pairs: [string, Attempt | null | undefined][] = [["수정 전", card.before], ["수정 후", card.after]];
         const rows = locked ? [] : pairs.filter((x): x is [string, Attempt] => Boolean(x[1]));
         return (
           // ★ 접힌 제목에 공격 ID 를 같이 넣는다 — 같은 기법이 여러 건 뽑히면 ID 만 서로 다르다.
@@ -65,7 +65,7 @@ export function EvidenceCards({ rep, gated, onSignup }: { rep: Report; gated: Ga
                   {/* 공격 원문·응답 전문은 응답에 애초에 담기지 않는다. 자리와 이유만 남긴다. */}
                   <div className="evidence-label">공격자가 보낸 요청</div>
                   <div className="notice">🔒 실제 공격 문구는 무료 가입 후 확인할 수 있습니다.</div>
-                  <div className="evidence-label">챗봇이 어떻게 답했나 (보강 전 · 보강 후)</div>
+                  <div className="evidence-label">챗봇이 어떻게 답했나 (수정 전 · 수정 후)</div>
                   <div className="notice">🔒 두 응답 전문과 판정 근거는 무료 가입 후 확인할 수 있습니다.</div>
                 </>
               ) : (
@@ -73,13 +73,13 @@ export function EvidenceCards({ rep, gated, onSignup }: { rep: Report; gated: Ga
                   <div className="evidence-label">공격자가 보낸 요청</div>
                   <div className="evidence-request">{card.rendered_text || "기록 없음"}</div>
                   <div className="two-col">
-                    <ResponseBlock r={card.before} label="보강 전" verdict={false} />
-                    <ResponseBlock r={card.after} label="보강 후" verdict={false} />
+                    <ResponseBlock r={card.before} label="수정 전" verdict={false} />
+                    <ResponseBlock r={card.after} label="수정 후" verdict={false} />
                   </div>
                 </>
               )}
               <details className="fold">
-                <summary>{rows.length ? "판정 근거 · " : ""}이 항목의 권고 조치</summary>
+                <summary>{rows.length ? "판정 근거 · " : ""}이 문제를 해결하려면</summary>
                 {rows.map(([lbl, r]) => <div className="fold-row" key={lbl}><span>{lbl}</span>{verdictLine(r)}</div>)}
                 <div className="report-meta">{advice.body}</div>
               </details>

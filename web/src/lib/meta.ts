@@ -16,16 +16,22 @@ export const GRADE_COLOR: Record<string, string> = {
 
 export const FINDING_META: Record<FindingState, { name: string; color: string; desc: string }> = {
   unjudged: { name: "판정 불가", color: "#9A5B00", desc: "응답 또는 판정이 불완전하여 재검증이 필요합니다" },
-  unresolved: { name: "미해결", color: "#C62A41", desc: "보강 전후 모두 유출이 관측됐습니다" },
-  regressed: { name: "보강 후 신규", color: "#9A5B00", desc: "보강 전에는 막혔는데 보강 후 뚫렸습니다" },
-  resolved: { name: "해결됨", color: "#0A7A53", desc: "보강 전에는 유출, 보강 후에는 미검출입니다" },
-  unaffected: { name: "기존부터 차단됨", color: "#646E82", desc: "보강 전부터 차단돼 있었습니다" },
+  unresolved: { name: "유출 남음", color: "#C62A41", desc: "수정 전후 모두 정보가 노출됐습니다" },
+  regressed: { name: "수정 후 새 유출", color: "#9A5B00", desc: "수정 전에는 막았지만 수정 후 정보가 노출됐습니다" },
+  resolved: { name: "수정 후 차단", color: "#0A7A53", desc: "수정 전에는 노출됐지만 이번 재시험에서는 차단됐습니다" },
+  unaffected: { name: "처음부터 차단", color: "#646E82", desc: "수정 전부터 차단돼 있었습니다" },
   // ★ 밝기가 아니라 색상(hue)으로 unaffected 와 구분한다. 두 중립색을 밝기로만 가르면
   //   둘 중 하나는 4.5:1 을 못 넘거나, 넘더라도 도넛 차트에서 같은 회색으로 보인다.
-  no_retry: { name: "재진단 없음", color: "#5E6B8C", desc: "같은 공격이 2회차에 실행되지 않았습니다" },
+  no_retry: { name: "재시험 안 됨", color: "#5E6B8C", desc: "같은 공격이 2회차에 실행되지 않았습니다" },
 };
 
 export const sev = (state: FindingState) => FINDING_META[state].color;
+
+/** 메시지 검사와 진단 결과에서 같은 탐지 사유를 같은 이름으로 표시한다. */
+export const FLAG_KO: Record<string, string> = {
+  역순요청: "거꾸로 출력 요구", 자모분해요청: "자모·초성 분해 요구", 자모분해: "자모가 분해된 문자열",
+  구분자삽입: "글자 사이 구분자 삽입", 인코딩요청: "문자를 코드로 바꿔 출력 요구", 로마자음차: "한글을 영문 발음으로 출력 요구",
+};
 
 /**
  * 판정(verdict) 색 — 유출/차단/판정불가.

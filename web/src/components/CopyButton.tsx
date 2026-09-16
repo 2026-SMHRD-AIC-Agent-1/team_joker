@@ -31,7 +31,7 @@ export function CopyButton({ text, label }: { text: string; label: string }) {
     <div className="copy-row">
       <button type="button" className="btn" onClick={async () => setState((await copyText(text)) ? "ok" : "no")}>{label}</button>
       <span className={`copy-s ${state}`} role="status">
-        {state === "ok" ? "복사했습니다" : state === "no" ? "복사 실패 — 아래 보강안을 직접 선택해 복사하세요" : ""}
+        {state === "ok" ? "복사했습니다" : state === "no" ? "복사 실패 — 아래 수정안을 직접 선택해 복사하세요" : ""}
       </span>
     </div>
   );

@@ -13,7 +13,7 @@ export function EvidenceDialog({ open, onClose, metrics = METRICS }: { open: boo
       {!metrics.metrics?.length ? <p className="fine">근거 파일을 찾을 수 없습니다.</p> : (
         <>
           <p className="fine" style={{ marginBottom: 12 }}>
-            지금 여러분이 진단한 결과가 아니라, 별도 데이터로 우리가 측정한 이 도구의 검증 수치입니다. 조건과 함께 인용하세요.
+            별도 시험 데이터의 결과입니다. 측정 조건과 한계를 함께 확인하세요.
           </p>
           {orderedMetrics(metrics).map((x) => (
             <div className="ev-row" key={x.key}>
@@ -42,7 +42,7 @@ export function ToolEvidence({ metrics = METRICS, heading = true }:
   return (
     <section aria-label="이 도구의 검증 근거">
       {heading ? <Section title="이 도구의 검증 근거"
-        desc="지금 이 계정의 진단이 아니라, 별도 데이터로 우리가 측정한 값입니다. 측정 조건·출처·한계는 ‘근거 전체 보기’ 에 있습니다." /> : null}
+        desc="내 진단 결과가 아닌, 별도 데이터로 우리가 측정한 값입니다." /> : null}
       <div className="ev" style={{ marginTop: 8 }}>
         {cards.map((c) => (
           <div className="ev-card" key={c.title} data-testid="ev-card">
@@ -51,7 +51,7 @@ export function ToolEvidence({ metrics = METRICS, heading = true }:
               <div className="ev-m" key={x.key}>
                 <div className="ev-l">{x.label}</div>
                 <div className="ev-v num">{x.value}</div>
-                <div className="ev-d">{x.detail}</div>
+                <div className="ev-d">{x.summary ?? x.detail}</div>
               </div>
             ))}
           </div>

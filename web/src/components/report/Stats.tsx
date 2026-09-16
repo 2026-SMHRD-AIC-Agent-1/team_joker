@@ -16,7 +16,7 @@ export function FindingsBreakdown({ rep }: { rep: Report }) {
   const count = (k: string) => Number((fs as unknown as Record<string, number>)[k] ?? 0);
   return (
     <>
-      <SubSection title="발견 항목 상태별 건수" />
+      <SubSection title="공격 시험 결과" />
       <div className="meta">
         {FINDING_ORDER.map((k) => (
           <div className="row" key={k}>
@@ -35,7 +35,7 @@ export function FindingsBreakdown({ rep }: { rep: Report }) {
 export function TechniqueBars({ rows }: { rows: Report["by_technique"] }) {
   return (
     <div className="tb" data-testid="tech-bars">
-      <div className="tb-head"><div>공격 기법</div><div>보강 전</div><div /><div /><div>보강 후</div><div /></div>
+      <div className="tb-head"><div>공격 기법</div><div>수정 전</div><div /><div /><div>수정 후</div><div /></div>
       {rows.map((r) => {
         const b = techBar(r);
         if (b.kind === "na") return <div className="notice" key={r.technique}>{b.name} · 판정 불가 / 미측정</div>;
@@ -58,13 +58,13 @@ export function TechniqueBars({ rows }: { rows: Report["by_technique"] }) {
 export function Conditions({ run }: { run: Run }) {
   const t = run.target;
   const rows: [string, string][] = [
-    ["진단 식별자", run.run_id || "-"],
+    ["진단 번호", run.run_id || "-"],
     ["진단 대상 모델", t.model || "-"],
     ["백엔드", t.backend || "-"],
     ["프리셋", t.preset || "-"],
     ["temperature", t.temperature === undefined ? "-" : String(t.temperature)],
     ["seed", t.seed === undefined ? "-" : String(t.seed)],
-    ["모델 충실도", t.fidelity === "proxy_model" ? "대리 모델" : "실제 모델 (BYOK)"],
+    ["검사에 사용한 모델", t.fidelity === "proxy_model" ? "대리 모델" : "직접 연결한 모델"],
     ["실행 시각", run.created_at || "-"],
   ];
   return (
@@ -84,9 +84,9 @@ export function Stats({ run, rep }: { run: Run; rep: Report }) {
   return (
     <>
       <div className="meta" style={{ marginBottom: 12 }}>
-        <div className="row"><span className="k">보강안 재시험 등급</span>
+        <div className="row"><span className="k">수정 후 진단 등급</span>
           <span className="v" style={rep.grade ? { color: GRADE_COLOR[rep.grade] } : undefined}>{rep.grade ?? "판정 보류"}</span></div>
-        <div className="row"><span className="k">공격 성공률 변화</span>
+        <div className="row"><span className="k">정보 유출 비율 변화</span>
           <span className="v num" style={{ color }} data-testid="delta">{d.value}</span></div>
       </div>
       <p className="fine">{d.worse ? <b>{d.why}</b> : d.why}{rep.grade_basis ? ` 등급 근거 — ${rep.grade_basis}.` : ""}</p>

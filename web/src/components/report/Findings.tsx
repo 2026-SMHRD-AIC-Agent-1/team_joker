@@ -34,7 +34,7 @@ export function Findings({ runId, rep, gated, onSignup }: { runId: string; rep: 
 
   const header = (
     <Section title="전체 발견 항목"
-      desc={<>공격 1건이 발견 항목 1건입니다. 처음에는 <b>지금 조치·재검증이 필요한 상태</b>만 켜 둡니다 — 상태 필터를 모두 켜면 전체 항목으로 돌아갑니다.</>} />
+      desc={<>확인이 필요한 공격부터 보여드립니다. 상태를 선택해 다른 결과도 볼 수 있습니다.</>} />
   );
 
   if (gated.is_gated && (gated.attempts_hidden ?? 0)) {
@@ -81,7 +81,7 @@ export function Findings({ runId, rep, gated, onSignup }: { runId: string; rep: 
           </div>
         ) : null}
         <div className="filter-row">
-          <input className="input" type="search" aria-label="검색" placeholder="공격 ID · 기법명 · 공격 문구로 검색"
+          <input className="input" type="search" aria-label="검색" placeholder="공격 번호 · 유형 · 메시지로 검색"
             value={filter.q} onChange={(e) => setFilter({ ...filter, q: e.target.value })} />
           <button type="button" className="btn" onClick={() => setFilter({ states: defaultStates(findings), techs: [], q: "" })}>필터 초기화</button>
         </div>
@@ -99,7 +99,7 @@ export function Findings({ runId, rep, gated, onSignup }: { runId: string; rep: 
       ) : (
         <div className="tbl-wrap">
           <div className="table-scroll"><table className="tbl" aria-label="발견 항목">
-            <thead><tr><th>상태</th><th>공격 ID</th><th>기법</th><th>유출 채널</th><th>판정 근거</th><th /></tr></thead>
+            <thead><tr><th>상태</th><th>공격 ID</th><th>기법</th><th>노출 방식</th><th>판정 근거</th><th /></tr></thead>
             <tbody>
               {rows.map((f) => (
                 <tr key={f.id}>

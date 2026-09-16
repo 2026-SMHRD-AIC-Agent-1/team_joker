@@ -2,9 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
 
 const PAGES = [
-  { path: "/", label: "서비스 소개", sections: [["intro", "서비스 개요"], ["compare", "두 검사 비교"], ["process", "진단·추가 탐지 과정"], ["evidence", "검증 근거"]] },
+  { path: "/", label: "서비스 소개", sections: [["intro", "어떤 서비스인가요?"], ["compare", "무엇을 검사할까요?"], ["process", "검사 과정"], ["evidence", "검증 근거"]] },
   { path: "/diagnose", label: "지시문 검사", sections: [["start", "검사 시작"], ["techniques", "검사 안내"]] },
-  { path: "/detect", label: "입력문 검사", sections: [["start", "입력문 검사"], ["method", "탐지 방식"]] },
+  { path: "/detect", label: "입력문 검사", sections: [["start", "입력문 검사"], ["method", "판단 기준"]] },
 ];
 
 function PageMenu({ page }: { page: typeof PAGES[number] }) {

@@ -42,7 +42,7 @@ describe("발견 항목 상태 — 서버 serialize.finding_state 와 같은 규
     expect(filterFindings(f, { states: [], techs: [], q: "특별" }).map((x) => x.id)).toEqual(["A"]);
   });
 
-  it("해결된 항목에는 유출 채널을 찍지 않는다(보강 전 채널이 현재처럼 읽힌다)", () => {
+  it("해결된 항목에는 유출 채널을 찍지 않는다(수정 전 채널이 현재처럼 읽힌다)", () => {
     const [f] = buildFindings([att("A", 1, "leak"), att("A", 2, "block")]);
     expect(currentChannel(f)).toBe("—");
   });
@@ -64,7 +64,7 @@ describe("변화량 — abs() 로 뭉개지 않는다", () => {
   });
 });
 
-describe("원본 → 보강안 줄 비교", () => {
+describe("원본 → 수정안 줄 비교", () => {
   it("추가·삭제·유지를 기호로 표시하고, 한 덩어리 안에서는 빠진 줄이 먼저", () => {
     const rows = diffLines("가\n나\n다", "가\n라\n다\n마");
     expect(rows.map((r) => r.mk + r.text)).toEqual(["=가", "−나", "＋라", "=다", "＋마"]);

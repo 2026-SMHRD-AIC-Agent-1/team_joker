@@ -1,5 +1,5 @@
 // 발견 항목 1건 — 별도 화면(상세는 별도 화면 원칙).
-// 구성: 무엇을 던졌나 → 챗봇이 뭐라 했나(보강 전·후) → 분류·측정 조건 → 뭘 하면 되나.
+// 구성: 무엇을 던졌나 → 챗봇이 뭐라 했나(수정 전·후) → 분류·측정 조건 → 뭘 하면 되나.
 import { Link, useNavigate } from "react-router-dom";
 import type { Run } from "../../api/types";
 import { ADVICE } from "../../lib/advice";
@@ -24,7 +24,7 @@ export function FindingDetail({ run, fid }: { run: Run; fid: string }) {
       <EmptyState icon="🔎" title={rep.attempts.length ? "이 발견 항목을 찾을 수 없습니다" : "발견 항목 상세는 회원 리포트에서만 열립니다"}
         why={rep.attempts.length ? `이 진단에 ${fid} 항목이 없습니다. 목록에서 다시 골라 주세요.`
           : "공격 문구와 응답 전문은 비회원 응답에 담기지 않습니다. 무료 가입하면 방금 진단의 상세가 그대로 열립니다."}
-        action={<Link className="btn" to={base}>← 리포트로 돌아가기</Link>} />
+        action={<Link className="btn" to={base}>← 진단 결과로 돌아가기</Link>} />
     );
   }
   const order = findingOrder(run.run_id, findings);
@@ -37,7 +37,7 @@ export function FindingDetail({ run, fid }: { run: Run; fid: string }) {
     ["상태", FINDING_META[f.state].name],
     ["공격 기법", f.techniqueKo],
     ["공격 목표", goal],
-    ["유출 채널", currentChannel(f)],
+    ["노출 방식", currentChannel(f)],
     ["판정 근거", f.verdictBy ? (VERDICT_BY_KO[f.verdictBy] ?? "—") : "—"],
     ["진단 모델", t.model || "-"],
     ["재현 조건", `temp ${t.temperature ?? "-"} · seed ${t.seed ?? "-"}`],
@@ -65,9 +65,9 @@ export function FindingDetail({ run, fid }: { run: Run; fid: string }) {
           <div className="payload">{f.text || "(기록 없음)"}</div>
           <p className="fine">공격문의 치환 값은 자산 <b>이름</b>·페르소나·기관명·가짜값뿐입니다 — 지시문의 실제 비밀값은 공격문에 들어가지 않습니다.</p>
           <SubSection title="② 같은 공격에 챗봇이 어떻게 답했나" />
-          <ResponseBlock r={f.r1} label="보강 전" />
+          <ResponseBlock r={f.r1} label="수정 전" />
           <div style={{ height: 12 }} />
-          <ResponseBlock r={f.r2} label="보강 후 · 같은 공격을 그대로 재생" />
+          <ResponseBlock r={f.r2} label="수정 후 · 같은 공격을 그대로 재생" />
           <p className="fine">응답은 마스킹된 발췌입니다 — 인식한 보호값을 마스킹하며, 변형·판정 불가 응답은 원문을 보류합니다.</p>
         </div>
         <div>

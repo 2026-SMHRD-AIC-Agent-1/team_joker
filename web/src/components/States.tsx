@@ -43,12 +43,10 @@ export function Failure({ icon, title, why, actions, code, runId, tone = "error"
 export function ServerDown({ runId }: { runId?: string | null }) {
   return (
     <Failure icon="📡" title="진단 서버와 연결이 끊겼습니다" runId={runId}
-      why={<>진단과 탐지는 모두 API 서버에서 돌아갑니다. 서버가 멈췄거나 주소가 바뀌면 화면이 결과를
-        받아올 수 없습니다. <b>진행 중이던 진단 자체는 서버가 살아 있으면 계속됩니다.</b></>}
+      why={<>결과를 불러올 수 없습니다. <b>연결이 끊겨도 서버가 작동 중이면 진단은 계속됩니다.</b></>}
       actions={[
-        <>API 서버 터미널이 살아 있는지 확인 (<code>uvicorn "joker.api.app:create_app" --factory --port 8000</code>)</>,
-        <>서버를 다시 띄운 뒤 <b>브라우저를 새로고침</b></>,
-        <>로그인 상태라면 서버 복구 후 <b>대시보드</b> 에서 같은 진단을 다시 열 수 있습니다</>,
+        "인터넷 연결을 확인한 뒤 새로고침",
+        <>로그인한 경우 연결 복구 후 <b>진단 기록</b>에서 결과 확인</>,
       ]} />
   );
 }

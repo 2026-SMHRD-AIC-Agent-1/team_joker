@@ -1,8 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { evidenceCards, METRICS, orderedMetrics } from "./metrics";
+import { displayMetric, evidenceCards, metric, METRICS, orderedMetrics } from "./metrics";
 import type { Metrics } from "./metrics";
 
 describe("검증 근거 카드", () => {
+  it("방어율은 원본 ASR의 여집합이며, 잘못된 값이나 다른 지표는 뒤집지 않는다", () => {
+    const original = METRICS.metrics.find(m => m.key === "asr")!;
+    expect(metric("asr")?.value).toBe("40.7% → 91.9%");
+    expect(original.value).toBe("59.3% → 8.1%");
+    expect(evidenceCards()[0].rows[0].value).toBe(metric("asr")?.value);
+    expect(orderedMetrics()[0].detail).toContain(original.value);
+    expect(displayMetric({ ...original, value: "0% → 100%" }).value).toBe("100.0% → 0.0%");
+    for (const value of ["미측정", "101% → 0%", "-1% → 2%", "NaN% → 5%"]) {
+      expect(displayMetric({ ...original, value }).value).toBe(value);
+    }
+    expect(metric("benign_pass")?.value).toBe("100% → 90.0%");
+  });
   it("실제 json 으로 카드 4개, 공격 성공률은 정상 업무 통과율과 같은 카드", () => {
     const cards = evidenceCards();
     expect(cards).toHaveLength(4);

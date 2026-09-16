@@ -37,7 +37,7 @@ export function dashStats(runs: RunRow[]): DashStats {
   };
 }
 
-/** ★ 평균 변화량도 abs() 를 쓰지 않는다. 악화된 진단이 섞이면 평균이 내려가야 맞다. */
+/** ★ 평균 유출 감소폭도 abs() 를 쓰지 않는다. 악화된 진단이 섞이면 평균이 내려가야 맞다. */
 export function avgText(deltas: number[]): { text: string; color?: string } {
   if (!deltas.length) return { text: "-" };
   const avg = (deltas.reduce((a, b) => a + b, 0) / deltas.length) * 100;
@@ -49,7 +49,7 @@ export function avgText(deltas: number[]): { text: string; color?: string } {
 export function Dashboard() {
   const { data, error, loading, reload } = useApi<RunList>("/api/runs");
   const header = (
-    <PageHeader eyebrow="OVERVIEW" title="대시보드" desc="이 계정으로 실행한 진단의 현황입니다.">
+    <PageHeader eyebrow="OVERVIEW" title="대시보드" desc="내 챗봇의 검사 결과와 아직 해결할 문제를 한눈에 확인하세요.">
       <button className="btn" disabled={loading} onClick={reload}>새로고침</button>
       <Link className="btn btn-primary" to="/diagnose">＋ 새 진단</Link>
     </PageHeader>
@@ -62,10 +62,8 @@ export function Dashboard() {
     return (
       <>
         {header}
-        <EmptyState icon="🩺" title="아직 진단한 지시문이 없습니다"
-          why={<>챗봇에 넣은 시스템 지시문을 붙여넣으면 한국어 공격을 실제로 던져 뚫리는 지점을 찾고, 방어 문구로 지시문을
-            보강한 뒤, 같은 공격을 다시 던져 개선을 숫자로 보여줍니다. 무엇을 넣을지 모르겠다면 <b>예시 지시문</b>으로 바로
-            시작할 수 있습니다.</>}
+        <EmptyState icon="🩺" title="첫 검사 결과를 여기서 확인하세요"
+          why={<>챗봇의 역할과 규칙을 넣으면 정보 유출 여부와 수정안을 확인할 수 있습니다. <b>예시로도 시작할 수 있습니다.</b></>}
           action={<Link className="btn btn-primary" to="/diagnose">예시로 첫 진단 시작하기</Link>} />
         {/* ★ 새 계정의 빈 대시보드에서도 근거는 보여야 한다. */}
         <ToolEvidence />
@@ -85,14 +83,14 @@ export function Dashboard() {
           네 칸 모두 GET /api/runs 의 값에서 바로 나온다. */}
       <div className="kpi-grid">
         {[
-          { k: "need", label: "조치가 필요한 발견 항목", value: `${s.need}건`,
+          { k: "need", label: "해결이 필요한 문제", value: `${s.need}건`,
             sub: s.need ? `진단 ${s.openRuns.length}건에 남아 있습니다` : "남아 있는 항목이 없습니다",
             color: s.need ? sev("unresolved") : sev("resolved"), icon: "alert" },
-          { k: "runs", label: "진단한 지시문", value: `${s.real.length}건`, sub: "누적 (mock 제외)", icon: "doc" },
+          { k: "runs", label: "완료한 진단", value: `${s.real.length}건`, sub: "실제 검사 기준", icon: "doc" },
           { k: "grade", label: "최근 진단 등급", value: s.latest?.grade ?? "—",
             sub: s.latest ? (s.latest.target_model ?? "-") : "등급이 매겨진 실제 진단 없음",
             color: s.latest?.grade ? GRADE_COLOR[s.latest.grade] : undefined, icon: "grade" },
-          { k: "delta", label: "평균 변화량", value: avg.text, color: avg.color,
+          { k: "delta", label: "평균 유출 감소폭", value: avg.text, color: avg.color,
             sub: s.deltas.length ? `비교 가능한 ${s.deltas.length}건 기준` : "비교 가능한 진단 없음", icon: "trend" },
         ].map((x) => (
           <div className="kpi-card" key={x.k}>
@@ -106,15 +104,14 @@ export function Dashboard() {
         ))}
       </div>
       {s.incomparableN ? (
-        <p className="fine">※ 보강 전·후가 서로 다른 공격 집합으로 실행된 진단 {s.incomparableN}건은 ‘평균 변화량’ 에서 제외했습니다(비교 불가).</p>
+        <p className="fine">서로 다른 공격으로 시험한 {s.incomparableN}건은 평균 비교에서 제외했습니다.</p>
       ) : null}
-      <div className="checkline">‘조치가 필요한 발견 항목’ = <b>미해결</b> + <b>보강 후 신규</b>. 결과 화면의 상태 스트립과 같은 기준입니다.</div>
+      <div className="checkline">수정 후에도 정보가 노출된 항목을 ‘해결이 필요한 문제’로 표시합니다.</div>
       {s.mockN ? (
-        <p className="fine">※ mock(가짜 응답) 런 {s.mockN}건은 위 집계와 추이에서 제외했습니다 — 항상 100%→0% 라 섞이면 지표가 실제보다 좋아 보입니다. 목록에는 표시됩니다.</p>
+        <p className="fine">예시 결과 {s.mockN}건은 실제 검사가 아니므로 통계에서 제외했습니다.</p>
       ) : null}
       {!s.real.length ? (
-        <div className="notice" style={{ marginTop: 12 }}>지금 저장된 진단이 모두 <b>mock(가짜 응답)</b> 이라 위 지표에 집계할 실제 결과가 없습니다.
-          실제 모델로 한 번 진단하면 여기에 값이 채워집니다.</div>
+        <div className="notice" style={{ marginTop: 12 }}>저장된 기록이 모두 <b>예시 결과</b>입니다. 실제 검사를 실행하면 통계가 표시됩니다.</div>
       ) : null}
 
       {/* ★ 0914: 지표 줄 아래 자리는 '이 계정의 실제 집계' 가 갖는다. 도구의 검증 근거(별도 데이터)는
@@ -129,7 +126,7 @@ export function Dashboard() {
           이 도구는 대부분의 진단에 조치가 남아 표가 통째로 겹쳤다. */}
       {s.need ? (
         <>
-          <Section title="조치가 필요한 진단" desc="미해결이거나 보강 후 새로 뚫린 항목이 남아 있는 진단입니다 — JOKER-KO 탐지기 배치 대상입니다." />
+          <Section title="조치가 필요한 진단" desc="수정 후에도 정보가 노출된 진단입니다. 결과를 열어 확인하세요." />
           <div style={{ marginTop: 8 }}><RunTable label="조치가 필요한 진단" runs={openTop} /></div>
         </>
       ) : null}
@@ -137,8 +134,8 @@ export function Dashboard() {
       {trendPoints(s.real).length >= 3 ? (
         <>
           {/* ★ '개선 추이' 라고 부르지 않는다 — 나빠진 진단이 섞여도 제목이 개선이라고 말하게 된다. */}
-          <Section title="보강 전·후 공격 성공률 추이"
-            desc={<>가는 선이 <b>보강 전</b>, 굵은 선이 <b>보강 후</b>입니다. 굵은 선이 아래로 갈수록 좋습니다. mock 런과 비교 불가 진단은 빠져 있습니다.</>} />
+          <Section title="수정 전후 정보 유출 비율"
+            desc={<>가는 선은 <b>수정 전</b>, 굵은 선은 <b>수정 후</b>입니다. 낮을수록 유출이 적습니다.</>} />
           <div style={{ marginTop: 8 }}><TrendChart runs={s.real} /></div>
         </>
       ) : null}

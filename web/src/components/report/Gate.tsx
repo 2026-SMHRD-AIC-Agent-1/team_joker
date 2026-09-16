@@ -1,7 +1,7 @@
 // 게이트 — 비회원에게 '무엇이 얼마나 가려졌는지' 를 알리고 그 자리에서 가입시킨다.
 //
 // ★ 이 컴포넌트는 가려진 '내용' 을 인자로 받지 않는다 — 서버가 애초에 안 내려보낸다
-//   (serialize._apply_gate: attempts=[] · 보강안 앞 2줄 · 대표 카드는 껍데기만).
+//   (serialize._apply_gate: attempts=[] · 수정안 앞 2줄 · 대표 카드는 껍데기만).
 // ★ 흐린 줄의 출처는 아래 GATE_DECOY(화면이 들고 있는 고정 문자열)뿐이다. 개발자도구로 흐림을 벗기면
 //   가짜 문장이 나온다. 진짜를 흐리는 제품과 정반대다(tests/test_web_guard.py 가 강제).
 // ★ 가려진 '양' 을 숫자로 말한다. 흐림만 있으면 '별거 없나 보다' 로 읽혀 가입 동기가 죽는다.
@@ -43,16 +43,14 @@ export function Gate({ title, total, hidden, unlock, decoy = "patch", compact = 
         <div><span className="n">{hidden}</span><span className="gate-tail"> {tail}</span></div>
         {unlock ? <p>{unlock}</p> : null}
         <div className="gate-cta">
-          <button type="button" className="btn btn-primary" onClick={onSignup}>무료 가입하고 상세 분석과 보강안 보기</button>
-          {compact ? <span>30초 · 카드 정보 없음 · 위와 같은 계정으로 함께 열립니다.</span>
-            : <span>30초 · 카드 정보 없음 · 이름 · 연락처 · 생년월일을 수집하지 않습니다. 가입하면 <b>방금 실행한 이 진단</b>이
-              그대로 열립니다 — 다시 진단하지 않아도 됩니다.</span>}
+          <button type="button" className="btn btn-primary" onClick={onSignup}>무료 가입하고 상세 분석과 수정안 보기</button>
+          {compact ? <span>카드 정보 없이 무료로 확인하세요.</span>
+            : <span>가입하면 <b>방금 진단의 상세 결과</b>가 열립니다. 다시 검사할 필요 없습니다.</span>}
         </div>
       </div>
       {/* ★ 이 안내는 compact 에서도 지우지 않는다 — 가리는 방식(서버 미전송)을 밝히는 문장이라
           화면에 한 번도 안 나오는 경우가 생기면 안 된다. */}
-      <div className="gate-note">위 흐린 줄은 <b>화면이 만든 예시 문장</b>입니다. 실제 내용은 비회원 응답에{" "}
-        <b>애초에 담기지 않습니다</b> — 개발자도구 Network 탭에서 직접 확인할 수 있습니다.</div>
+      <div className="gate-note">흐린 줄은 <b>화면이 만든 예시 문장</b>입니다. 실제 상세 내용은 가입 후 불러옵니다.</div>
     </div>
   );
 }

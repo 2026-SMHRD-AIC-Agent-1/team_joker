@@ -6,7 +6,7 @@ export function MockBanner() {
   if (!h || h.profile !== "mock") return null;
   return (
     <div className="alert alert-error" role="status">
-      ⚠️ <b>mock 프로파일로 실행 중입니다.</b> 응답이 가짜라 이 화면의 등급·공격 성공률은 실제 측정값이 아닙니다. 인용하지 마세요.
+      ⚠️ <b>예시 결과를 보여주는 모드입니다.</b> 이 화면의 등급과 수치는 실제 측정값이 아닙니다. 인용하지 마세요.
     </div>
   );
 }
