@@ -1906,8 +1906,7 @@ def _poll_running(base: str, run_id: str):
     elapsed = int(time.time() - st.session_state.get("started_at", time.time()))
     c1, c2 = st.columns([1, 2.6], vertical_alignment="center")
     c1.markdown(f'<div class="ml">경과 시간</div><div class="elapsed">'
-                f'{elapsed//60}:{elapsed%60:02d}</div>'
-                f'<div class="cell-sub">예상 3~4분</div>', unsafe_allow_html=True)
+                f'{elapsed//60}:{elapsed%60:02d}</div>', unsafe_allow_html=True)
     with c2:
         if progress.get("queued"):
             # ★ 대기 중을 '지시문 분석 중' 으로 그리면 멈춘 화면이 된다. 로컬 모델은 8GB 라
@@ -1932,7 +1931,7 @@ def advanced_options(base: str):
         labels = [p["label"] + ("  · 실험적" if not p.get("verified", True) else "") for p in presets]
         c1, c2 = st.columns(2)
         idx = c1.selectbox("진단 대상 모델", range(len(presets)), format_func=lambda i: labels[i])
-        mode = "full" if c2.radio("정밀도", ["스크리닝 (~90초)", "정밀 (전량, 수 분)"],
+        mode = "full" if c2.radio("정밀도", ["스크리닝", "정밀 (전량)"],
                                   index=0, horizontal=True).startswith("정밀") else "screening"
         chosen = presets[idx]
         target = {"preset": chosen["id"]}
@@ -2081,7 +2080,7 @@ def start_diagnosis(base: str, prompt: str, target, mode: str) -> bool:
         render_failure(
             "🔌", "대상 모델에 연결하지 못했습니다",
             "<b>Chat Shield 의 장애가 아닙니다.</b> 진단을 시작하기 전에 대상 모델을 한 번 "
-            "호출해 보는데(프리플라이트) 여기서 실패했습니다. 잘못된 키로 3~4분과 요금을 "
+            "호출해 보는데(프리플라이트) 여기서 실패했습니다. 잘못된 키로 시간과 요금을 "
             "날리지 않으려고 미리 검사합니다.",
             ["<b>고급 설정</b> 에서 base_url · 모델명 · API 키 확인",
              "로컬 모델이면 <code>ollama serve</code> 가 떠 있는지 확인"],
@@ -2107,7 +2106,6 @@ def render_new_run(base: str):
     with st.container(key="row_start"):
         button, note = st.columns([1.3, 2.7], vertical_alignment="center")
         clicked = button.button("보안 진단 시작", type="primary", use_container_width=True)
-        note.caption("기본 스크리닝 약 90초 · 모델과 대기 상황에 따라 달라집니다.")
     st.caption("진단 범위: 지시문 + 선택 모델. 실제 서비스의 RAG·도구 호출·대화 이력은 포함하지 않습니다.")
     if not logged_in:
         st.caption(_guest_quota_line(base))
@@ -2273,7 +2271,7 @@ def render_detect(base: str):
 
     st.markdown(
         '<div class="notice" style="margin-top:24px">'
-        '<b>진단</b>은 배포 <b>전에</b> 내 지시문을 검사하고(공격 시드 수십 종 · 수 분), '
+        '<b>진단</b>은 배포 <b>전에</b> 내 지시문을 검사하고(공격 시드 수십 종), '
         '<b>입력 탐지</b>는 운영 <b>중에</b> 사용자가 보낸 문구를 요청마다 거릅니다(0.1초). '
         '지시문 보강만으로 막지 못한 공격이 남기 때문에 기능이 두 개입니다.</div>',
         unsafe_allow_html=True)

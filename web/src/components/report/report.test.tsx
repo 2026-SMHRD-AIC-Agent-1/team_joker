@@ -88,14 +88,14 @@ describe("진행 단계 — JOKER-KO 줄 고정 · 판정 구간", () => {
   it("재진단 중에도 JOKER-KO 줄이 대기로 미리 보인다", () => {
     const rows = stageRows(at(3, { stage_done: 20, stage_total: 57 }));
     expect(rows.map((r) => r.key)).toEqual(STAGES.map((s) => s.key));
-    expect(rows[4]).toMatchObject({ label: "남은 공격 추가 검사", state: "todo", detail: "대기" });
+    expect(rows[4]).toMatchObject({ label: "JOKER-KO 추가 검사", state: "todo", detail: "대기" });
   });
 
   it("공격을 다 던진 뒤에는 '57/57' 대신 판정 중이라고 말한다", () => {
     const p = at(3, { phase: "judge", stage_total: 57 });
     expect(stageRows(p)[3].detail).toBe("응답 57건 판정 중");
     render(<ProgressView progress={p} startedAt={Date.now()} mode="full" />);
-    expect(screen.getByRole("status").textContent).toContain("다시 시험 응답을 판정하고 있어요");
+    expect(screen.getByRole("status").textContent).toContain("재검사 응답을 판정하고 있어요");
     expect(screen.getByTestId("stages").textContent).not.toContain("57/57");
   });
 
@@ -116,9 +116,9 @@ describe("진행 단계 — JOKER-KO 줄 고정 · 판정 구간", () => {
 it("JOKER-KO 안내는 서버 단계에만 반응하고 경과 시간을 유지한다", () => {
   const { rerender } = render(<ProgressView progress={{stage_index:0, queued:false, stages:[{key:'detector',label:'추가 검사'}]}} startedAt={Date.now()-5000} mode="screening" />);
   expect(screen.getByRole('timer').textContent).toBe('0:05');
-  expect(screen.getByRole('status').textContent).toContain('남은 공격을 찾아낼 수 있는지 확인하고 있어요');
+  expect(screen.getByRole('status').textContent).toContain('JOKER-KO로 추가 탐지 여부를 확인하고 있어요');
   rerender(<ProgressView progress={{stage_index:0, queued:false, stages:[{key:'report',label:'결과 정리'}]}} startedAt={Date.now()-5000} mode="screening" />);
-  expect(screen.getByRole('status').textContent).not.toContain('남은 공격을 찾아낼 수 있는지');
+  expect(screen.getByRole('status').textContent).not.toContain('JOKER-KO로 추가 탐지 여부를');
   expect(screen.getByRole('timer')).toBeTruthy();
 });
 

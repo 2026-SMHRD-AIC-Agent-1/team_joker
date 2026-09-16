@@ -92,8 +92,8 @@ function Advanced({ models, loadFailed, presetId, setPresetId, mode, setMode, by
           ) : null}
           <fieldset className="field radio-set">
             <legend>검사 범위</legend>
-            <label><input type="radio" name="mode" checked={mode === "screening"} onChange={() => setMode("screening")} /> 빠른 검사 (약 90초)</label>
-            <label><input type="radio" name="mode" checked={mode === "full"} onChange={() => setMode("full")} /> 전체 검사 (약 3~4분)</label>
+            <label><input type="radio" name="mode" checked={mode === "screening"} onChange={() => setMode("screening")} /> 빠른 검사</label>
+            <label><input type="radio" name="mode" checked={mode === "full"} onChange={() => setMode("full")} /> 전체 검사</label>
           </fieldset>
         </div>
         {chosen?.requires_key ? (
@@ -195,7 +195,6 @@ export function NewRun({ embedded = false }: { embedded?: boolean }) {
       {models.error ? <button className="btn" onClick={models.reload}>모델 목록 다시 불러오기</button> : null}
       <div className="cta-row">
         <button type="button" className="btn btn-primary" disabled={busy || models.loading || Boolean(chosen?.requires_key && !estimate) || Boolean(estimate && estimate.victim_max > estimate.configured_limit)} onClick={start}>{busy ? "시작하는 중…" : "지시문 검사 시작"}</button>
-        <span className="fine" style={{ margin: 0 }}>{mode === "full" ? "전체 검사 약 3~4분" : "빠른 검사 약 90초"} · 모델과 대기 상황에 따라 달라집니다.</span>
       </div>
       <p className="fine">입력한 규칙과 선택한 AI만 시험합니다. 연결된 문서·외부 기능·이전 대화는 제외됩니다.</p>
       {!loggedIn ? <p className="fine" data-testid="quota">🎟️ {quotaLine(guest.remaining, guest.limitNote)}</p> : null}

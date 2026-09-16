@@ -25,13 +25,13 @@ export function Landing() {
 
     <section id="process" className="story-section" aria-labelledby="process-title">
       <div className="story-heading"><span className="story-kicker">02 / 검사 과정</span>
-        <h2 id="process-title">시험하고. 고치고.<br /><span>다시 확인합니다.</span></h2>
-        <p>속이는 질문에 정보를 지켰는지, 수정 전후를 비교합니다.</p>
+        <h2 id="process-title">검사하고. 보강하고.<br /><span>다시 확인합니다.</span></h2>
+        <p>같은 공격으로, 보강 전후를 비교합니다.</p>
       </div>
       <div className="process-line">
-        {[['01', '규칙 확인', '챗봇이 지켜야 할 정보를 찾습니다.'], ['02', '공격 시험', '속이는 질문으로 정보 유출을 시험합니다.'], ['03', '수정안 제안', '정보를 지킬 규칙을 추가합니다.'], ['04', '다시 시험', '같은 질문으로 수정 효과를 확인합니다.'], ['05', '결과 확인', '남은 공격의 탐지 여부도 확인합니다.']].map(([n, title, desc]) => <div key={n}><span className="process-number">{n}</span><h3>{title}</h3><p>{desc}</p></div>)}
+        {[['01', '지시문 분석', '보호할 정보와 규칙을 찾습니다.'], ['02', '공격 검사', '여섯 유형의 공격으로 유출을 확인합니다.'], ['03', '방어 문구 생성', '취약한 지시문을 보강합니다.'], ['04', '재검사', '같은 공격으로 보강 전후를 비교합니다.'], ['05', 'JOKER-KO 추가 검사', '남은 유출 공격을 JOKER-KO로 한 번 더 검사합니다.']].map(([n, title, desc]) => <div key={n}><span className="process-number">{n}</span><h3>{title}</h3><p>{desc}</p></div>)}
       </div>
-      <p className="quiet-scope">관리자 사칭, 규칙 무시 요청, 글자 변형 등 여섯 유형을 시험합니다.</p>
+      <p className="quiet-scope">관리자 사칭, 규칙 무시 요청, 글자 변형 등 여섯 유형을 검사합니다.</p>
       <p>수정안은 직접 검토해 적용하세요. 실제 서비스에 자동 적용하거나 실시간으로 차단하지 않습니다.</p>
       <Link className="story-link" to="/diagnose">내 챗봇 규칙 검사하기 <span>→</span></Link>
     </section>

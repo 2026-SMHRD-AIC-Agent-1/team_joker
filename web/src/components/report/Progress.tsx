@@ -6,17 +6,17 @@ import { Skeleton } from "../States";
 
 // 서버가 주는 stage key 에 1:1 로 대응시킨다 — 화면이 단계를 지어내면 실제 파이프라인과 갈린다.
 export const STAGE_KO: Record<string, string> = {
-  detector: "남은 공격 추가 검사",
-  recon: "규칙 확인", attack_r1: "공격 시험", patch: "수정안 작성", attack_r2: "다시 시험", report: "결과 정리",
+  detector: "JOKER-KO 추가 검사",
+  recon: "지시문 분석", attack_r1: "공격 검사", patch: "방어 문구 생성", attack_r2: "재검사", report: "결과 정리",
 };
 
 const STAGE_HINT: Record<string, string> = {
-  detector: "수정 후 남은 공격을 AI와 규칙으로 확인하고 있어요.",
-  recon: "챗봇의 규칙에서 지켜야 할 정보를 찾고 있어요.",
+  detector: "지시문 보강 후에도 남은 유출 공격을 JOKER-KO로 검사하고 있어요.",
+  recon: "지시문에서 보호할 정보와 보안 규칙을 살펴보고 있어요.",
   attack_r1: "다양한 공격으로 보안 규칙이 잘 지켜지는지 확인하고 있어요.",
-  patch: "정보를 지킬 규칙을 추가하고 있어요.",
-  attack_r2: "수정한 지시문에 같은 공격을 보내 개선 여부를 확인하고 있어요.",
-  report: "진단 결과와 수정 내용을 정리하고 있어요.",
+  patch: "발견된 취약점을 바탕으로 방어 문구를 만들고 있어요.",
+  attack_r2: "보강한 지시문에 같은 공격을 보내 개선 여부를 확인하고 있어요.",
+  report: "진단 결과와 보강 내용을 정리하고 있어요.",
 };
 
 const JUDGE_HINT = "모델 응답에 보호할 정보가 드러났는지 한 건씩 판정하고 있어요. 애매한 응답은 판정 모델이 다시 확인해 시간이 걸릴 수 있어요.";
@@ -77,14 +77,14 @@ export function ProgressView({ progress, estimatedCalls, startedAt, mode }: {
         <div className="ml">경과 시간</div>
         {/* 다른 탭에서 시작한 진단이면 시작 시각을 모른다 — 0:00 부터 세지 않고 모른다고 둔다. */}
         <div className="elapsed num" role="timer" aria-label="진단 경과 시간">{elapsed === null ? "—" : `${Math.floor(elapsed / 60)}:${String(elapsed % 60).padStart(2, "0")}`}</div>
-        <div className="cell-sub">{mode === "full" ? "전체 검사 · 예상 3~4분" : mode === "screening" ? "빠른 검사 · 예상 약 90초" : "모델과 대기 상황에 따라 다릅니다"}</div>
+        <div className="cell-sub">{mode === "full" ? "전체 검사" : mode === "screening" ? "빠른 검사" : "진단 진행 중"}</div>
         {progress.queued ? <p className="fine">대기 시간을 포함합니다</p> : null}
       </div>
       <div className="prog-body">
         <div className="prog-activity" role="status" aria-live="polite" aria-atomic="true">
           <div className="prog-activity-title"><span className="prog-dots" aria-hidden="true"><i /><i /><i /></span>
             <strong>{progress.queued ? "진단 순서를 기다리고 있어요"
-              : current?.key === "detector" ? "남은 공격을 찾아낼 수 있는지 확인하고 있어요"
+              : current?.key === "detector" ? "JOKER-KO로 추가 탐지 여부를 확인하고 있어요"
               : current && judging ? `${current.label} 응답을 판정하고 있어요`
               : current ? `${current.label} 중이에요` : "진단을 준비하고 있어요"}</strong>
           </div>
@@ -108,7 +108,7 @@ export function ProgressView({ progress, estimatedCalls, startedAt, mode }: {
               ))}
             </div>
             <p className="fine">대상 모델 호출 {progress.calls_done ?? 0}회{estimatedCalls ? ` · 이 진단의 상한 ${estimatedCalls}회` : ""} ·
-              시험할 질문 수는 검사 중 달라질 수 있습니다.</p>
+              검사할 공격 수는 검사 중 달라질 수 있습니다.</p>
           </>
         )}
       </div>
