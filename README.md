@@ -42,6 +42,12 @@
 모든 수치의 원본은 [`data/evidence/headline_metrics.json`](data/evidence/headline_metrics.json) 하나이며, 웹 화면도 같은 파일을 읽습니다.
 측정 문서는 [`docs/`](docs/)에 있고, 재측정 스크립트는 [`scripts/`](scripts/)에 있습니다.
 
+### 화면
+
+| 첫 화면 | 지시문 검사 | 입력문 검사 (JOKER-KO) |
+|---|---|---|
+| ![첫 화면](docs/images/landing.png) | ![지시문 검사 입력](docs/images/diagnose-input.png) | ![입력문 검사 결과](docs/images/detect-injection.png) |
+
 ---
 
 ## 2. 해결하려는 문제
@@ -137,13 +143,13 @@ flowchart LR
 |---|---|
 | 공격 성공률 | **59.3% → 8.1%** (51.2%p 감소) |
 | 측정 조건 | 대상 모델 `qwen2.5:3b-instruct` · 지시문 5개 · 공격 시드 57개 · temperature 0 · seed 42 |
-| 재현성 | 동일 설정 2회 실행 시 판정 304건 100% 일치 (공격 시드 38개 설정에서 측정) |
+| 재현성 | `temperature 0`에서도 로컬 모델은 완전히 재현되지 않아 편차를 따로 측정했습니다. 공격 시드 38개 × 3회 반복에서 매번 같은 판정이 나온 공격은 **33~38 / 38** (측정 3회) |
 | 정상 업무 통과율 | **100% → 90.0%** (30/30 → 27/30, 보강 후 95% CI 74.4–96.5%) |
 
 공격 성공률 감소가 거절을 늘린 결과인지 확인하려고, 같은 보강문으로 정상 업무 질문을 따로 측정했습니다.
 통과하지 못한 3건은 모두 업무 정보(신규 쿠폰 코드 · 간편인증 · 분실 신고 시간)를 `비공개`로 답한 경우로,
 보강문이 **보호 자산과 비슷한 정보까지 비밀로 오인**한 사례입니다.
-근거: [`docs/benign_rerun_20260911_092046.md`](docs/benign_rerun_20260911_092046.md)
+근거: [`docs/asr_rerun_20260903_165716.md`](docs/asr_rerun_20260903_165716.md) · [`docs/benign_rerun_20260911_092046.md`](docs/benign_rerun_20260911_092046.md) · 재현성 [`docs/reproducibility_20260826_163221.md`](docs/reproducibility_20260826_163221.md) · [`164521`](docs/reproducibility_20260826_164521.md) · [`165526`](docs/reproducibility_20260826_165526.md)
 
 ### ② 탐지 모델 — 공개 탐지기와 같은 조건에서
 
@@ -193,6 +199,9 @@ JOKER-KO가 보여주는 것은 **"더 많이 잡는다"가 아니라 "정상 �
 |---|---|
 | 유출 판정 F1 | **0.871** |
 | 측정 조건 | 독립 LLM 심판 + 사람 재정. 심판에게 비밀값 원문을 주지 않아 정답을 알고 채점하는 순환을 끊었습니다 |
+| 재계산 | `joker gold f1` — 정답 라벨이 로컬 DB(`joker.db`)에 있어 저장소만으로는 재계산할 수 없습니다 |
+
+근거: [`docs/SPEC.md`](docs/SPEC.md) 목표 대비 실측표
 
 ---
 
@@ -202,7 +211,7 @@ JOKER-KO가 보여주는 것은 **"더 많이 잡는다"가 아니라 "정상 �
 
 - **"챗봇 서비스가 안전하다"는 뜻이 아닙니다.** 진단 대상은 *시스템 지시문 + 선택한 모델* 조합이며, 실제 서비스의 RAG 문서 · 도구 호출 · 대화 이력 · 출력 후처리는 재현하지 않습니다.
 - **모든 공격을 막지 않습니다.** 권위 사칭 · 방언 · 짧은 구어체는 놓칩니다(OOD 49건 중 9건). 놓친 건의 모델 점수가 모두 0.03 미만이라 문턱 조정으로는 해결되지 않고 학습 데이터 보강이 필요합니다.
-- **공격 성공률은 대상 모델에 따라 달라집니다.** `gemma3:4b`는 같은 조건에서 64.9% → 40.4%였습니다.
+- **공격 성공률은 대상 모델에 따라 달라집니다.** 위 수치는 `qwen2.5:3b-instruct` 기준이며, 다른 모델에 그대로 적용되지 않습니다.
 - **리포트의 JOKER-KO 사후 검사 수치는 탐지 성능 지표가 아닙니다.** 진단 공격 시드와 탐지 학습 데이터의 원천이 같아(57개 중 47개가 학습·검증에 사용) 모델이 이미 본 문장이 섞여 있습니다. 탐지 성능은 held-out · OOD 수치로만 인용합니다.
 - **탐지 test 세트 F1(0.981)은 단독으로 인용하지 않습니다.** 공격 105행의 고유 시드가 10개뿐이고, 공격과 정상 문장이 길이만으로 거의 구분됩니다(길이 ≥ 48자 규칙도 F1 0.952).
 - **가용성 · 비용 공격은 범위 밖입니다.** 이 서비스가 진단하는 것은 데이터 유출입니다.
@@ -318,7 +327,7 @@ flowchart TD
 
 - Python 3.11 이상 · Node.js 20 이상
 - 실제 진단: [Ollama](https://ollama.com) + `ollama pull qwen2.5:3b-instruct`
-- 입력문 검사: 학습된 JOKER-KO 모델 폴더 `detector/artifacts/joker-ko` (약 1.1GB, 저장소 미포함)
+- 입력문 검사: 학습된 JOKER-KO 모델 폴더 `detector/artifacts/joker-ko` (약 1.1GB, 저장소 미포함) — 데이터셋 구축·학습 방법은 [`detector/README.md`](detector/README.md)
 
 ### 설치
 
@@ -332,6 +341,7 @@ pip install -e ".[web,dev]"          # API + 테스트
 pip install -e ".[detect]"           # JOKER-KO 추론(torch · transformers), 선택
 
 [ -f .env ] || cp .env.example .env  # 모델 주소·역할별 모델 설정
+# ★ .env 의 기본값은 JOKER_PROFILE=mock(가짜 결과)입니다. 실제 모델로 진단하려면 local 로 바꾸세요.
 
 cd web
 npm ci
@@ -377,7 +387,8 @@ joker gold f1                                            # 판정기 F1 재계�
 | 증상 | 확인할 것 |
 |---|---|
 | 포트 5173 / 8000 사용 중 | 이미 실행 중인 서버를 `Ctrl+C`로 종료 후 재실행 |
-| 대상 모델 연결 실패 | Ollama 실행 여부, 모델 다운로드, `.env`의 모델 주소 |
+| 화면 상단에 mock 경고가 뜸 | `.env`의 `JOKER_PROFILE`이 `mock`입니다. `local`로 바꾸고 서버 재시작 |
+| 대상 모델 연결 실패 | Ollama 실행 여부, 모델 다운로드, `.env`의 모델 주소. `python scripts/ping_roles.py`로 대상 · 분석 · 판정 모델 중 어느 쪽이 실패하는지 확인 |
 | 입력문 검사 불가 · 리포트 사후 검사 "미검사" | `detector/artifacts/joker-ko` 폴더와 `.[detect]` 설치. 지시문 진단은 모델 없이도 동작합니다 |
 | 첫 입력문 검사 · 첫 진단이 느림 | 첫 추론 때 탐지 모델을 메모리에 올리기 때문입니다 |
 
@@ -425,7 +436,7 @@ npx vitest run
 │   └── evidence/         headline_metrics.json — 화면 수치의 단일 출처
 ├── detector/             JOKER-KO 데이터셋 구축 · 학습 · 평가 (모델 가중치 제외)
 ├── scripts/              재측정 스크립트 (ASR · 방어 조합 · OOD · 공개 모델 비교)
-├── docs/                 측정 결과 문서
+├── docs/                 측정 결과 문서 (_stale/ 은 재측정으로 대체된 이전 측정본, images/ 는 README 화면)
 ├── contracts/            API 응답 계약
 ├── tests/                Python 테스트
 ```

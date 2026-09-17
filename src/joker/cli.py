@@ -367,12 +367,8 @@ def _cmd_detect(args) -> int:
     return 0
 
 
-def _cmd_todo(_args) -> int:
-    raise NotImplementedError("해당 단계에서 구현")
-
-
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="joker", description="「뚫어보기」 엔진 CLI")
+    p = argparse.ArgumentParser(prog="joker", description="Chat Shield 진단 엔진 CLI")
     sub = p.add_subparsers(dest="command", required=True)
     diag_p = sub.add_parser("diagnose", help="진단 → 처방 → 재진단")
     diag_p.add_argument("--prompt", default=None, help="진단할 시스템 프롬프트(미지정+mock 이면 데모)")
@@ -425,7 +421,6 @@ def build_parser() -> argparse.ArgumentParser:
     det_p.add_argument("--model-path", default=None, help="파인튜닝 모델 경로(기본: detector/artifacts/joker-ko)")
     det_p.add_argument("--threshold", type=float, default=0.5, help="INJECTION 판정 문턱(기본 0.5)")
     det_p.set_defaults(func=_cmd_detect)
-    sub.add_parser("bench", help="실측 스크립트 실행").set_defaults(func=_cmd_todo)
     sub.add_parser("doctor", help="환경 상태 점검").set_defaults(func=_cmd_doctor)
     return p
 

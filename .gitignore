@@ -25,3 +25,6 @@ dist/
 
 _pack/
 _to_delete/
+
+# 발표 영상·캡처 제작 산출물(대용량)
+outputs/
