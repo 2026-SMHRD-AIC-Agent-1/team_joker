@@ -180,8 +180,12 @@ class JobRegistry:
         except Exception as e:  # noqa: BLE001 — 워커 스레드 최상단
             err = classify_error(e)
             self._set(run_id, "error", err)
-            # ★ 예외 메시지에 base_url·키가 섞일 수 있어 트레이스백 원문은 안 찍는다. 코드만 남긴다.
-            _log.error("diagnose failed run_id=%s code=%s", run_id, err["code"])
+            # ★ 트레이스백 원문은 안 찍는다. 원인 한 줄은 서버 로그(로컬 터미널)에만 남긴다 —
+            #   화면 응답(err)엔 여전히 고정 문구만 간다. _log 는 mask_secrets 를 거쳐 키가 가려진다.
+            #   (0917: 코드만 남겼더니 target_unreachable 가 victim/recon/judge 중 누구 탓인지 몰랐다.)
+            cause = " ".join(str(e).split())[:500]
+            _log.error("diagnose failed run_id=%s code=%s cause=%s: %s",
+                       run_id, err["code"], type(e).__name__, cause)
 
     def request_cancel(self, run_id: str) -> bool:
         """진행 중인 진단에 정지를 요청한다. 진행 중이 아니면 False(호출자는 409/404 로 답한다).

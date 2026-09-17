@@ -37,6 +37,10 @@ class ProviderError(Exception):
     pass
 
 
+class _RepeatLimit(Exception):
+    """Ollama 반복 한도 초과로 생성이 끊김(연결 실패가 아님). complete() 안에서만 처리한다."""
+
+
 class OpenAICompatProvider:
     def __init__(self, *, base_url: str, api_key: str, model: str,
                  timeout: float = 120.0, max_tokens: int = 512,
@@ -72,22 +76,21 @@ class OpenAICompatProvider:
             body["max_tokens"] = self.max_tokens
         return body
 
-    def complete(self, *, system: str, user: str, temperature: float, seed: int) -> CallResult:
+    def _post(self, body: dict) -> dict:
+        """HTTP 1회. 반복 한도 500 은 _RepeatLimit, 나머지 실패는 ProviderError."""
         url = f"{self.base_url}/chat/completions"
-        body = self._build_body(system=system, user=user, temperature=temperature, seed=seed)
         data = json.dumps(body).encode("utf-8")
         req = urllib.request.Request(url, data=data, method="POST")
         req.add_header("Content-Type", "application/json")
         if self.api_key:
             req.add_header("Authorization", f"Bearer {self.api_key}")
 
-        start = time.monotonic()
         try:
             from joker.safety.endpoints import open_public
             connection = (open_public(req, self.base_url, self.timeout) if self.public_only
                           else urllib.request.urlopen(req, timeout=self.timeout))
             with connection as resp:
-                payload = json.loads(resp.read().decode("utf-8"))
+                return json.loads(resp.read().decode("utf-8"))
         except urllib.error.HTTPError as e:
             # ★ 2026-08-27: 예전엔 base_url 과 "HTTP Error 404" 만 찍었다. 그걸론 원인을 알 수 없다.
             #   실제로 exaone3.5:7.8b 를 받아놓고 victim 호출이 404 났는데, 모델명도 서버 설명도
@@ -98,6 +101,8 @@ class OpenAICompatProvider:
                 body = e.read().decode("utf-8", "replace")[:400]
             except Exception:  # noqa: BLE001 — 본문을 못 읽어도 나머지 정보는 살린다
                 pass
+            if e.code == 500 and "repeat limit" in body:
+                raise _RepeatLimit(body) from e
             hint = ""
             if e.code == 404:
                 hint = (" · 404 는 대개 '그 모델이 서버에 없음' 이다. "
@@ -111,6 +116,26 @@ class OpenAICompatProvider:
             raise ProviderError(
                 f"LLM 호출 실패 model={self.model!r} url={self.base_url}: {e}"
             ) from e
+
+    def complete(self, *, system: str, user: str, temperature: float, seed: int) -> CallResult:
+        body = self._build_body(system=system, user=user, temperature=temperature, seed=seed)
+        start = time.monotonic()
+        try:
+            payload = self._post(body)
+        except _RepeatLimit:
+            # ★ 2026-09-17: Ollama 가 같은 토큰을 계속 반복하는 생성을 500
+            #   "prediction aborted, token repeat limit reached" 로 끊는다. temperature=0 인 3b 모델이
+            #   일부 공격 문구에서 반복 루프에 빠지면 난다. 예전엔 이게 ProviderError 로 올라가
+            #   진단 전체가 target_unreachable 로 죽었다(연결 문제가 아닌데도).
+            #   1) 반복 억제(frequency_penalty)만 얹어 1회 재시도 — temperature/seed 는 그대로(재현성 유지).
+            #   2) 그래도 끊기면 '응답 없음(빈 문자열)'으로 돌려준다 — 모델이 뭔가를 말하지 못했으니
+            #      유출 판정 근거도 없다. 한 건 때문에 3~4분짜리 진단 전체를 버리지 않는다.
+            retry = dict(body, frequency_penalty=0.5)
+            try:
+                payload = self._post(retry)
+            except _RepeatLimit:
+                return CallResult(text="", model=self.model, usage=Usage(),
+                                  latency_ms=int((time.monotonic() - start) * 1000))
         latency_ms = int((time.monotonic() - start) * 1000)
 
         # 신형 모델이 추론에 토큰을 다 쓰면 content 가 None 일 수 있다 → 빈 문자열로 방어
